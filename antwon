@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BOT_NAME="antwon"
+HOST="172.23.206.205"
+PORT="3000"
+
+cmd="${1:-}"
+
+case "$cmd" in
+  run)
+    echo "[$BOT_NAME] starting Think Smart at http://$HOST:$PORT/"
+    exec npm run dev -- --hostname "$HOST" --port "$PORT"
+    ;;
+  *)
+    echo "Usage: ./antwon run"
+    exit 1
+    ;;
+esac

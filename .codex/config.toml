@@ -1,0 +1,18 @@
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 3
+max_depth = 2
+
+[agents.ui_port]
+description = "Ports static template UI to Next.js App Router (Think Smart branding), keeps CSS structure intact, uses lucide-react icons."
+config_file = "agents/ui-port.toml"
+
+[agents.supabase_backend]
+description = "Creates Supabase schema + RLS, wires Auth, replaces mock data with Supabase queries."
+config_file = "agents/supabase-backend.toml"
+
+[agents.monetization]
+description = "Implements Stripe subscriptions + upgrade/billing pages + feature gating + polish."
+config_file = "agents/monetization.toml"
