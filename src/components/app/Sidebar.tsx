@@ -11,12 +11,14 @@ import {
   GraduationCap,
   House,
   LayoutDashboard,
+  Menu,
   MessageSquare,
   Sparkles,
 } from "lucide-react";
 
 type SidebarProps = {
   sidebarOpen: boolean;
+  onToggleSidebar: () => void;
 };
 
 type NavItem = {
@@ -49,20 +51,25 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
   },
 ];
 
-export default function Sidebar({ sidebarOpen }: SidebarProps) {
+export default function Sidebar({ sidebarOpen, onToggleSidebar }: SidebarProps) {
   const pathname = usePathname();
 
   return (
     <aside className={`sidebar ${sidebarOpen ? "mobile-open" : "collapsed"}`} id="sidebar">
       <div className="sidebar-brand">
-        <div className="brand-logo">
-          <div className="brand-icon" aria-hidden>
-            <House className="icon-svg" />
+        <div className="sidebar-brand-row">
+          <div className="brand-logo">
+            <div className="brand-icon" aria-hidden>
+              <House className="icon-svg" />
+            </div>
+            <div>
+              <div className="brand-name">The Logic Branch</div>
+              <div className="brand-tagline">Texas Homeschool</div>
+            </div>
           </div>
-          <div>
-            <div className="brand-name">The Logic Branch</div>
-            <div className="brand-tagline">Texas Homeschool</div>
-          </div>
+          <button className="sidebar-menu-btn" onClick={onToggleSidebar} aria-label="Toggle sidebar" type="button">
+            <Menu className="icon-svg" />
+          </button>
         </div>
       </div>
 

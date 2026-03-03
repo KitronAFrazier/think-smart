@@ -107,7 +107,12 @@ export default function AppShell({ children, userEmail, currentPlan, isAdmin }: 
 
   return (
     <div id="app">
-      <Sidebar sidebarOpen={sidebarOpen} />
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => {
+          setSidebarOpen((prev) => !prev);
+        }}
+      />
       <div className={`main-content ${sidebarOpen ? "" : "sidebar-collapsed"}`} id="main-content">
         <Topbar
           title={topbarTitle}
