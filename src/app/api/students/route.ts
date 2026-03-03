@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerAuthContext } from "@/lib/supabase/server";
+import { isValidGradeLevel } from "@/lib/grade-curriculum";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,10 @@ export async function POST(request: Request) {
 
   if (!firstName || !gradeLevel) {
     return NextResponse.json({ error: "First name and grade level are required." }, { status: 400 });
+  }
+
+  if (!isValidGradeLevel(gradeLevel)) {
+    return NextResponse.json({ error: "Grade level must be Kindergarten through 8th Grade." }, { status: 400 });
   }
 
   const { data, error } = await auth.client
