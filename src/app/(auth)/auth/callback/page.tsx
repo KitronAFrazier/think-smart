@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { resolveRedirectPath } from "@/lib/redirect";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -102,5 +102,13 @@ export default function AuthCallbackPage() {
         <div className="progress-fill blue" style={{ width: "70%" }}></div>
       </div>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<div className="page">Loading...</div>}>
+      <AuthCallbackContent />
+    </Suspense>
   );
 }

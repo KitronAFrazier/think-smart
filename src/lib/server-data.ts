@@ -12,6 +12,20 @@ import {
   mockZones,
 } from "@/lib/mock-data";
 
+function relatedStudentFirstName(input: unknown): string | undefined {
+  if (Array.isArray(input)) {
+    const first = input[0] as { first_name?: unknown } | undefined;
+    return typeof first?.first_name === "string" ? first.first_name : undefined;
+  }
+
+  if (input && typeof input === "object") {
+    const row = input as { first_name?: unknown };
+    return typeof row.first_name === "string" ? row.first_name : undefined;
+  }
+
+  return undefined;
+}
+
 export async function getDashboardData() {
   const auth = await getServerAuthContext();
 
@@ -50,9 +64,7 @@ export async function getDashboardData() {
 
   const tasks =
     assignmentsRes.data?.map((assignment, index) => {
-      const studentName = Array.isArray(assignment.students)
-        ? assignment.students[0]?.first_name
-        : assignment.students?.first_name;
+      const studentName = relatedStudentFirstName(assignment.students);
 
       return {
         id: index + 1,
@@ -149,7 +161,7 @@ export async function getPlannerData() {
     id: index + 1,
     title: lesson.title,
     subject: lesson.subject,
-    student: Array.isArray(lesson.students) ? lesson.students[0]?.first_name ?? "Student" : lesson.students?.first_name ?? "Student",
+    student: relatedStudentFirstName(lesson.students) ?? "Student",
     done: false,
     due: lesson.start_date ?? "Today",
   }));

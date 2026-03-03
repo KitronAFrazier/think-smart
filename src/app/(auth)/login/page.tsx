@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { resolveRedirectPath } from "@/lib/redirect";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -20,7 +20,7 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [emailOrUsername, setEmailOrUsername] = useState("");
@@ -153,5 +153,13 @@ export default function LoginPage() {
         New here? <Link href="/signup">Create an account</Link>
       </p>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="page">Loading...</div>}>
+      <LoginContent />
+    </Suspense>
   );
 }

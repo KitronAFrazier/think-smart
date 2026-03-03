@@ -27,6 +27,11 @@ function resolveCustomerId(customer: string | Stripe.Customer | Stripe.DeletedCu
   return typeof customer === "string" ? customer : customer.id;
 }
 
+function resolveCurrentPeriodEnd(subscription: Stripe.Subscription): string | null {
+  const currentPeriodEnd = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end;
+  return typeof currentPeriodEnd === "number" ? new Date(currentPeriodEnd * 1000).toISOString() : null;
+}
+
 async function syncSubscription(subscription: Stripe.Subscription) {
   const userId = subscription.metadata.user_id || resolveCustomerUserId(subscription.customer);
 
@@ -40,9 +45,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     status: subscription.status,
     stripeCustomerId: resolveCustomerId(subscription.customer),
     stripeSubscriptionId: subscription.id,
-    currentPeriodEnd: subscription.current_period_end
-      ? new Date(subscription.current_period_end * 1000).toISOString()
-      : null,
+    currentPeriodEnd: resolveCurrentPeriodEnd(subscription),
   });
 }
 
@@ -83,9 +86,7 @@ export async function POST(request: Request) {
           status: subscription.status,
           stripeCustomerId: resolveCustomerId(subscription.customer),
           stripeSubscriptionId: subscription.id,
-          currentPeriodEnd: subscription.current_period_end
-            ? new Date(subscription.current_period_end * 1000).toISOString()
-            : null,
+          currentPeriodEnd: resolveCurrentPeriodEnd(subscription),
         });
       }
     }
