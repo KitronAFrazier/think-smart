@@ -14,7 +14,7 @@ export default async function AdminLoginPage() {
     }
   }
 
-  if (auth?.user && role !== "admin") {
+  if (auth?.user) {
     return (
       <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
         <div className="card" style={{ width: "100%", maxWidth: 560 }}>
