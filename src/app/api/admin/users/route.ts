@@ -148,10 +148,10 @@ async function getRolesByUserId(userIds: string[]): Promise<Map<string, AppRole>
     throw new Error(error.message);
   }
 
-  for (const row of data ?? []) {
+  for (const row of (data ?? []) as Array<Record<ProfileUserKey | "role", unknown>>) {
     const value = row[key];
     if (typeof value === "string") {
-      rolesByUserId.set(value, normalizeRole(row.role));
+      rolesByUserId.set(value, normalizeRole(typeof row.role === "string" ? row.role : null));
     }
   }
 
