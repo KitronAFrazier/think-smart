@@ -11,10 +11,24 @@ function subscriptionStatusToPlan(subscription: Stripe.Subscription) {
   return stripePriceIdToPlan(price?.id, productId);
 }
 
+function resolveCustomerUserId(customer: string | Stripe.Customer | Stripe.DeletedCustomer): string | undefined {
+  if (typeof customer === "string") {
+    return undefined;
+  }
+
+  if ("deleted" in customer && customer.deleted) {
+    return undefined;
+  }
+
+  return customer.metadata?.user_id;
+}
+
+function resolveCustomerId(customer: string | Stripe.Customer | Stripe.DeletedCustomer): string {
+  return typeof customer === "string" ? customer : customer.id;
+}
+
 async function syncSubscription(subscription: Stripe.Subscription) {
-  const userId =
-    subscription.metadata.user_id ||
-    (typeof subscription.customer === "string" ? undefined : subscription.customer.metadata?.user_id);
+  const userId = subscription.metadata.user_id || resolveCustomerUserId(subscription.customer);
 
   if (!userId) {
     return;
@@ -24,7 +38,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     userId,
     plan: subscriptionStatusToPlan(subscription),
     status: subscription.status,
-    stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
+    stripeCustomerId: resolveCustomerId(subscription.customer),
     stripeSubscriptionId: subscription.id,
     currentPeriodEnd: subscription.current_period_end
       ? new Date(subscription.current_period_end * 1000).toISOString()
@@ -67,7 +81,7 @@ export async function POST(request: Request) {
           userId: session.client_reference_id,
           plan: subscriptionStatusToPlan(subscription),
           status: subscription.status,
-          stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
+          stripeCustomerId: resolveCustomerId(subscription.customer),
           stripeSubscriptionId: subscription.id,
           currentPeriodEnd: subscription.current_period_end
             ? new Date(subscription.current_period_end * 1000).toISOString()
@@ -91,7 +105,7 @@ export async function POST(request: Request) {
         userId,
         plan: "free",
         status: subscription.status,
-        stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
+        stripeCustomerId: resolveCustomerId(subscription.customer),
         stripeSubscriptionId: subscription.id,
         currentPeriodEnd: null,
       });
