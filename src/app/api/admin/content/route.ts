@@ -100,7 +100,7 @@ export async function GET(request: Request) {
     const supabase = getSupabaseServiceClient();
 
     if (entity === "curriculum") {
-      let query = supabase
+      const query = supabase
         .from("subjects")
         .select("id, name, color, created_at")
         .order("created_at", { ascending: false })

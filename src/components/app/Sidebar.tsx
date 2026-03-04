@@ -1,19 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ComponentType } from "react";
 import {
+  Brain,
   BookOpen,
   CalendarDays,
   ChartColumn,
+  Code,
   FileBadge,
+  Flag,
+  Gamepad2,
   GraduationCap,
   House,
   LayoutDashboard,
   Menu,
   MessageSquare,
+  ScrollText,
   Sparkles,
+  SpellCheck,
+  Star,
+  Landmark,
 } from "lucide-react";
 
 type SidebarProps = {
@@ -51,8 +59,41 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
   },
 ];
 
+const studentNavSections: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: "Student Home",
+    items: [{ href: "/student-app", label: "Student Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "Learning",
+    items: [
+      { href: "/student-app?panel=curriculum", label: "Grade Curriculum", icon: ScrollText },
+      { href: "/student-app?panel=practice-quizzes", label: "Practice Quizzes", icon: Brain },
+      { href: "/student-app?panel=final-test", label: "Final Test", icon: Flag },
+    ],
+  },
+  {
+    label: "Games",
+    items: [
+      { href: "/student-app?panel=game-numbers", label: "Numbers", icon: Gamepad2 },
+      { href: "/student-app?panel=game-spelling-typing", label: "Spelling & Typing", icon: SpellCheck },
+      { href: "/student-app?panel=game-coding", label: "Coding", icon: Code },
+      { href: "/student-app?panel=game-history", label: "History", icon: Landmark },
+    ],
+  },
+  {
+    label: "Rewards",
+    items: [{ href: "/student-app?panel=points", label: "Points & Rewards", icon: Star }],
+  },
+];
+
 export default function Sidebar({ sidebarOpen, onToggleSidebar }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const studentView = pathname.startsWith("/student-app");
+  const navToRender = studentView ? studentNavSections : navSections;
+  const panel = searchParams.get("panel");
+  const currentHref = panel ? `${pathname}?panel=${panel}` : pathname;
 
   return (
     <aside className={`sidebar ${sidebarOpen ? "mobile-open" : "collapsed"}`} id="sidebar">
@@ -76,12 +117,12 @@ export default function Sidebar({ sidebarOpen, onToggleSidebar }: SidebarProps) 
       </div>
 
       <nav className="sidebar-nav">
-        {navSections.map((section) => (
+        {navToRender.map((section) => (
           <div key={section.label}>
             <div className="nav-section-label">{section.label}</div>
             {section.items.map((item) => {
               const Icon = item.icon;
-              const active = pathname === item.href;
+              const active = currentHref === item.href || (!panel && pathname === item.href);
               return (
                 <Link
                   key={item.href}
@@ -101,9 +142,9 @@ export default function Sidebar({ sidebarOpen, onToggleSidebar }: SidebarProps) 
       </nav>
 
       <div className="sidebar-footer">
-        <Link className="student-mode-btn" href="/student-app">
+        <Link className="student-mode-btn" href={studentView ? "/dashboard" : "/student-app"}>
           <BookOpen className="icon-svg" />
-          <span>Switch to Student View</span>
+          <span>{studentView ? "Switch to Parent View" : "Switch to Student View"}</span>
         </Link>
       </div>
     </aside>
