@@ -70,9 +70,14 @@ export default function StudentAppView() {
           <div className="student-panel-card">
             <h3>{panelLabels[activePanel] ?? "Student Dashboard"}</h3>
             {activePanel === "curriculum" ? (
-              <p>
-                Curriculum for {student.grade}: Mathematics, Language Arts, Science, Social Studies, Spelling, Grammar, and Good Citizenship.
-              </p>
+              <>
+                <p>
+                  Curriculum for {student.grade}: Mathematics, Language Arts, Science, Social Studies, Spelling, Grammar, and Good Citizenship.
+                </p>
+                <Link className="btn btn-primary btn-sm" href="/game">
+                  Play Number Munchers
+                </Link>
+              </>
             ) : null}
             {activePanel === "practice-quizzes" ? <p>Practice quizzes are available for Math facts, Reading comprehension, and Science review.</p> : null}
             {activePanel === "final-test" ? <p>Final tests are unlocked after completing all weekly practice quizzes.</p> : null}

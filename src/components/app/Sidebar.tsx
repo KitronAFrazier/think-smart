@@ -75,7 +75,7 @@ const studentNavSections: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "Games",
     items: [
-      { href: "/student-app?panel=game-numbers", label: "Numbers", icon: Gamepad2 },
+      { href: "/game", label: "Numbers", icon: Gamepad2 },
       { href: "/student-app?panel=game-spelling-typing", label: "Spelling & Typing", icon: SpellCheck },
       { href: "/student-app?panel=game-coding", label: "Coding", icon: Code },
       { href: "/student-app?panel=game-history", label: "History", icon: Landmark },
@@ -90,7 +90,7 @@ const studentNavSections: Array<{ label: string; items: NavItem[] }> = [
 export default function Sidebar({ sidebarOpen, onToggleSidebar }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const studentView = pathname.startsWith("/student-app");
+  const studentView = pathname.startsWith("/student-app") || pathname.startsWith("/game");
   const navToRender = studentView ? studentNavSections : navSections;
   const panel = searchParams.get("panel");
   const currentHref = panel ? `${pathname}?panel=${panel}` : pathname;

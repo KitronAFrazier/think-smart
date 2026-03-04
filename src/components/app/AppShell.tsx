@@ -36,6 +36,7 @@ const TITLE_MAP: Record<string, string> = {
   resources: "Resources",
   txlaws: "Texas Homeschool Laws",
   "student-app": "Student View",
+  game: "Numbers Game",
   upgrade: "Upgrade",
   billing: "Billing",
   settings: "Settings",
