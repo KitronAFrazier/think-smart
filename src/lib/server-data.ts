@@ -12,6 +12,16 @@ import {
   mockZones,
 } from "@/lib/mock-data";
 
+type StudentRow = {
+  id: string;
+  first_name: string;
+  grade_level: string;
+  avatar_text?: string | null;
+  login_username?: string | null;
+  xp: number | null;
+  streak: number | null;
+};
+
 function isMissingColumnError(message: string | undefined, column: string): boolean {
   if (!message) {
     return false;
@@ -89,9 +99,10 @@ export async function getDashboardData() {
       .limit(6),
     auth.client.from("attendance").select("status"),
   ]);
+  const studentRows = (studentsRes.data ?? []) as StudentRow[];
 
   const students =
-    studentsRes.data?.map((student) => ({
+    studentRows.map((student) => ({
       id: student.id,
       name: student.first_name,
       grade: student.grade_level,
@@ -160,8 +171,9 @@ export async function getStudentsData() {
       .select("student_id, subject, assignment_title, letter_grade, score_percent, recorded_at")
       .order("recorded_at", { ascending: false }),
   ]);
+  const studentRows = (studentsRes.data ?? []) as StudentRow[];
 
-  if (!studentsRes.data || studentsRes.data.length === 0) {
+  if (studentRows.length === 0) {
     return { students: [], grades: [] };
   }
 
@@ -173,7 +185,7 @@ export async function getStudentsData() {
     progressByStudent.set(row.student_id, existing);
   }
 
-  const students = studentsRes.data.map((student) => ({
+  const students = studentRows.map((student) => ({
     id: student.id,
     name: student.first_name,
     grade: student.grade_level,
@@ -190,7 +202,7 @@ export async function getStudentsData() {
     progress: progressByStudent.get(student.id) ?? {},
   }));
 
-  const studentById = new Map(studentsRes.data.map((student) => [student.id, student]));
+  const studentById = new Map(studentRows.map((student) => [student.id, student]));
 
   const grades =
     progressRes.data?.map((row) => {
