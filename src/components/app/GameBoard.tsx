@@ -21,6 +21,7 @@ type ServerProfile = {
   troggleCount: number;
   tickMs: number;
 };
+type Difficulty = "easy" | "normal" | "hard";
 
 const ROWS = 6;
 const COLS = 5;
@@ -30,6 +31,14 @@ const DEFAULT_PROFILE: ServerProfile = {
   eqComplexity: 1,
   troggleCount: 1,
   tickMs: 650,
+};
+const DIFFICULTY_SETTINGS: Record<
+  Difficulty,
+  { label: string; lives: number; tickMultiplier: number; troggleBonus: number; numberBonus: number }
+> = {
+  easy: { label: "Easy", lives: 5, tickMultiplier: 1.2, troggleBonus: 0, numberBonus: -4 },
+  normal: { label: "Normal", lives: 3, tickMultiplier: 1, troggleBonus: 0, numberBonus: 0 },
+  hard: { label: "Hard", lives: 2, tickMultiplier: 0.82, troggleBonus: 1, numberBonus: 8 },
 };
 
 function idx(row: number, col: number) {
@@ -52,6 +61,16 @@ function modeLabel(mode: Mode) {
   return "Not Equal Expressions";
 }
 
+function applyDifficulty(base: ServerProfile, difficulty: Difficulty): ServerProfile {
+  const settings = DIFFICULTY_SETTINGS[difficulty];
+  return {
+    ...base,
+    numberMax: clamp(base.numberMax + settings.numberBonus, 12, 300),
+    troggleCount: clamp(base.troggleCount + settings.troggleBonus, 1, 4),
+    tickMs: clamp(Math.round(base.tickMs * settings.tickMultiplier), 320, 1100),
+  };
+}
+
 async function postJSON<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
@@ -69,6 +88,7 @@ async function postJSON<T>(url: string, body: unknown): Promise<T> {
 
 export function GameBoard(props: { initialMode?: Mode }) {
   const mode: Mode = props.initialMode ?? "multiples";
+  const [difficulty, setDifficulty] = useState<Difficulty>("normal");
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ServerProfile | null>(null);
@@ -80,7 +100,7 @@ export function GameBoard(props: { initialMode?: Mode }) {
 
   const [troggles, setTroggles] = useState<Troggle[]>([]);
   const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(3);
+  const [lives, setLives] = useState(DIFFICULTY_SETTINGS.normal.lives);
 
   const [level, setLevel] = useState(1);
   const [gameOver, setGameOver] = useState(false);
@@ -89,7 +109,8 @@ export function GameBoard(props: { initialMode?: Mode }) {
   const lastActionAtRef = useRef<number>(0);
 
   const tickMs = profile?.tickMs ?? 650;
-  const hearts = `${"❤️".repeat(lives)}${"🖤".repeat(Math.max(0, 3 - lives))}`;
+  const maxLives = DIFFICULTY_SETTINGS[difficulty].lives;
+  const hearts = `${"❤️".repeat(lives)}${"🖤".repeat(Math.max(0, maxLives - lives))}`;
   const vibeText = gameOver
     ? "Great try. Hit restart and beat your score."
     : lives === 1
@@ -136,31 +157,33 @@ export function GameBoard(props: { initialMode?: Mode }) {
     lastActionAtRef.current = Date.now();
   }
 
-  async function startSession() {
+  async function startSession(nextDifficulty = difficulty) {
     setStatus("Starting...");
     try {
       const data = await postJSON<{ sessionId: string; profile: ServerProfile }>(
         "/api/game/session/start",
         { mode },
       );
+      const tuned = applyDifficulty(data.profile, nextDifficulty);
       setBackendEnabled(true);
       setSessionId(data.sessionId);
-      setProfile(data.profile);
-      setLevel(data.profile.level);
-      rebuildBoard(data.profile);
+      setProfile(tuned);
+      setLevel(tuned.level);
+      rebuildBoard(tuned);
       setScore(0);
-      setLives(3);
+      setLives(DIFFICULTY_SETTINGS[nextDifficulty].lives);
       setGameOver(false);
       setStatus("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
+      const tuned = applyDifficulty(DEFAULT_PROFILE, nextDifficulty);
       setBackendEnabled(false);
       setSessionId(`local-${crypto.randomUUID()}`);
-      setProfile(DEFAULT_PROFILE);
-      setLevel(DEFAULT_PROFILE.level);
-      rebuildBoard(DEFAULT_PROFILE);
+      setProfile(tuned);
+      setLevel(tuned.level);
+      rebuildBoard(tuned);
       setScore(0);
-      setLives(3);
+      setLives(DIFFICULTY_SETTINGS[nextDifficulty].lives);
       setGameOver(false);
       setStatus(`Offline mode: ${message}`);
     }
@@ -268,14 +291,14 @@ export function GameBoard(props: { initialMode?: Mode }) {
 
         const p = profile ?? { ...DEFAULT_PROFILE, level: level + 1 };
 
-        const boosted: ServerProfile = {
+        const boostedBase: ServerProfile = {
           ...p,
           level: p.level + 1,
           numberMax: clamp(p.numberMax + 6, 20, 300),
         };
 
-        setProfile(boosted);
-        rebuildBoard(boosted);
+        setProfile(boostedBase);
+        rebuildBoard(boostedBase);
       }
     } else {
       setScore((s) => Math.max(0, s - 5));
@@ -362,8 +385,25 @@ export function GameBoard(props: { initialMode?: Mode }) {
         </button>
       </div>
 
+      <div className="nm-difficulty-bar" role="group" aria-label="Choose game difficulty">
+        {(Object.keys(DIFFICULTY_SETTINGS) as Difficulty[]).map((key) => (
+          <button
+            key={key}
+            className={`nm-difficulty-btn ${difficulty === key ? "active" : ""}`}
+            onClick={() => {
+              setDifficulty(key);
+              void startSession(key);
+            }}
+            type="button"
+          >
+            {DIFFICULTY_SETTINGS[key].label}
+          </button>
+        ))}
+      </div>
+
       <div className="nm-objective-card">
         <div className="nm-pill">Mode: {modeLabel(mode)}</div>
+        <div className="nm-pill">Difficulty: {DIFFICULTY_SETTINGS[difficulty].label}</div>
         <div className="nm-pill nm-pill-gold">Level {level}</div>
         <div className="nm-objective">{headerText}</div>
       </div>
@@ -390,6 +430,7 @@ export function GameBoard(props: { initialMode?: Mode }) {
       {status ? <div className="nm-status">{status}</div> : null}
 
       <div className="nm-board-card">
+        <div className="nm-trackline" aria-hidden />
         <div className="nm-grid">
           {grid.map((cell, i) => {
             const r = Math.floor(i / COLS);

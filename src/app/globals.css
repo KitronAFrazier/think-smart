@@ -572,6 +572,20 @@ tr:hover td { background: var(--surface-2); }
   gap: 12px;
   margin-bottom: 12px;
 }
+.nm-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.04) 0,
+    rgba(255,255,255,0.04) 2px,
+    transparent 2px,
+    transparent 8px
+  );
+  mix-blend-mode: soft-light;
+}
 .nm-title {
   font-family: var(--font-display);
   font-size: 1.7rem;
@@ -598,6 +612,33 @@ tr:hover td { background: var(--surface-2); }
 .nm-restart:hover {
   transform: translateY(-1px);
   box-shadow: 0 14px 24px rgba(249,115,22,0.34);
+}
+.nm-difficulty-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.nm-difficulty-btn {
+  border: 1px solid #BFDBFE;
+  background: #FFFFFF;
+  color: #1E3A8A;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.nm-difficulty-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 14px rgba(30,64,175,0.15);
+}
+.nm-difficulty-btn.active {
+  background: linear-gradient(135deg, #2563EB, #4F46E5);
+  border-color: #1D4ED8;
+  color: #FFFFFF;
+  box-shadow: 0 10px 16px rgba(37,99,235,0.3);
 }
 .nm-objective-card {
   background: #FFFFFF;
@@ -665,15 +706,27 @@ tr:hover td { background: var(--surface-2); }
   border: 1px solid #BAE6FD;
 }
 .nm-board-card {
+  position: relative;
   background: #FFFFFF;
   border: 1px solid #DBEAFE;
   border-radius: 18px;
   padding: 14px;
 }
+.nm-trackline {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 10px;
+  height: 2px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, #60A5FA, #F59E0B, transparent);
+  opacity: 0.6;
+}
 .nm-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
+  margin-top: 6px;
 }
 .nm-cell {
   position: relative;
@@ -703,6 +756,7 @@ tr:hover td { background: var(--surface-2); }
   transform: translateY(-1px) scale(1.02);
   border-color: #2563EB;
   box-shadow: 0 0 0 3px #93C5FD;
+  z-index: 2;
 }
 .nm-cell.is-player::before {
   content: "";
@@ -716,6 +770,7 @@ tr:hover td { background: var(--surface-2); }
   background: linear-gradient(160deg, #111827, #374151);
   border-color: #0F172A;
   color: #fff;
+  box-shadow: 0 0 0 2px rgba(239,68,68,0.28);
 }
 .nm-cell.is-troggle .nm-cell-value {
   color: #F8FAFC;
@@ -769,6 +824,15 @@ tr:hover td { background: var(--surface-2); }
   background: linear-gradient(160deg, #111827 0%, #1E293B 50%, #0F172A 100%);
   border-color: #1E3A8A;
 }
+.dark-mode .nm-shell::after {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.03) 0,
+    rgba(255,255,255,0.03) 2px,
+    transparent 2px,
+    transparent 8px
+  );
+}
 .dark-mode .nm-title { color: #BFDBFE; }
 .dark-mode .nm-subtitle,
 .dark-mode .nm-objective { color: #DBEAFE; }
@@ -781,6 +845,16 @@ tr:hover td { background: var(--surface-2); }
 .dark-mode .nm-pill {
   background: #1E3A8A66;
   color: #BFDBFE;
+}
+.dark-mode .nm-difficulty-btn {
+  background: #0F172A;
+  border-color: #334155;
+  color: #BFDBFE;
+}
+.dark-mode .nm-difficulty-btn.active {
+  background: linear-gradient(135deg, #2563EB, #7C3AED);
+  border-color: #3B82F6;
+  color: #FFFFFF;
 }
 .dark-mode .nm-pill-gold {
   background: #92400E66;
@@ -803,6 +877,9 @@ tr:hover td { background: var(--surface-2); }
 .dark-mode .nm-cell.tone-d { background: linear-gradient(160deg, #14532D, #166534); }
 .dark-mode .nm-cell-tag { color: #CBD5E1; }
 .dark-mode .nm-controls { color: #94A3B8; }
+.dark-mode .nm-trackline {
+  background: linear-gradient(90deg, transparent, #38BDF8, #A78BFA, transparent);
+}
 
 /* ===== TABS ===== */
 .tabs { display: flex; gap: 4px; background: var(--surface-2); border-radius: 10px; padding: 4px; margin-bottom: 20px; }
@@ -915,6 +992,8 @@ tr:hover td { background: var(--surface-2); }
   .nm-subtitle { font-size: 0.8rem; }
   .nm-hud { align-items: flex-start; flex-direction: column; }
   .nm-restart { width: 100%; justify-content: center; }
+  .nm-difficulty-bar { width: 100%; }
+  .nm-difficulty-btn { flex: 1 1 calc(33.333% - 6px); text-align: center; }
   .nm-stats { grid-template-columns: 1fr 1fr; }
   .nm-grid { gap: 6px; }
   .nm-cell { min-height: 52px; border-radius: 10px; }
