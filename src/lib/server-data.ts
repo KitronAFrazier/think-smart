@@ -112,11 +112,14 @@ export async function getStudentsData() {
       .from("students")
       .select("id, first_name, grade_level, avatar_text, xp, streak")
       .order("created_at", { ascending: true }),
-    auth.client.from("progress").select("student_id, subject, score_percent"),
+    auth.client
+      .from("progress")
+      .select("student_id, subject, assignment_title, letter_grade, score_percent, recorded_at")
+      .order("recorded_at", { ascending: false }),
   ]);
 
   if (!studentsRes.data || studentsRes.data.length === 0) {
-    return { students: mockStudents, grades: mockGrades };
+    return { students: [], grades: [] };
   }
 
   const progressByStudent = new Map<string, Record<string, number>>();
@@ -134,10 +137,27 @@ export async function getStudentsData() {
     avatar: student.avatar_text ?? student.first_name.slice(0, 2).toUpperCase(),
     xp: student.xp ?? 0,
     streak: student.streak ?? 0,
-    progress: progressByStudent.get(student.id) ?? { Math: 0 },
+    progress: progressByStudent.get(student.id) ?? {},
   }));
 
-  return { students, grades: mockGrades };
+  const studentById = new Map(studentsRes.data.map((student) => [student.id, student]));
+
+  const grades =
+    progressRes.data?.map((row) => {
+      const student = studentById.get(row.student_id);
+      return {
+        student: student?.first_name ?? "Student",
+        subject: row.subject,
+        lesson: row.assignment_title ?? "Assignment",
+        grade: row.score_percent ?? 0,
+        letter: row.letter_grade ?? "N/A",
+        date: row.recorded_at
+          ? new Date(row.recorded_at).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })
+          : "",
+      };
+    }) ?? [];
+
+  return { students, grades };
 }
 
 export async function getPlannerData() {

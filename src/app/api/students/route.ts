@@ -12,6 +12,10 @@ function normalizeAvatarText(firstName: string): string {
   return firstName.trim().slice(0, 2).toUpperCase();
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export async function POST(request: Request) {
   const auth = await getServerAuthContext();
   if (!auth?.user) {
@@ -71,6 +75,10 @@ export async function DELETE(request: Request) {
 
   if (!studentId) {
     return NextResponse.json({ error: "Student id is required." }, { status: 400 });
+  }
+
+  if (!isUuid(studentId)) {
+    return NextResponse.json({ error: "Invalid student id." }, { status: 400 });
   }
 
   const { data, error } = await auth.client
