@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GameMode {
+  multiples
+  factors
+  primes
+  equality
+  inequality
+}
+
+model Student {
+  id        String   @id
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profiles  StudentModeProfile[]
+  sessions  GameSession[]
+  bests     StudentBestScore[]
+}
+
+model StudentModeProfile {
+  id            String   @id @default(uuid())
+  studentId     String
+  mode          GameMode
+  skillRating   Float    @default(0)
+  level         Int      @default(1)
+  emaAccuracy   Float    @default(0)
+  emaReactionMs Float    @default(0)
+  streakBest    Int      @default(0)
+  numberMax     Int      @default(30)
+  eqComplexity  Int      @default(1)
+  troggleCount  Int      @default(1)
+  tickMs        Int      @default(650)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, mode])
+  @@index([studentId])
+}
+
+model GameSession {
+  id           String   @id @default(uuid())
+  studentId    String
+  mode         GameMode
+  startedAt    DateTime @default(now())
+  endedAt      DateTime?
+  score        Int      @default(0)
+  levelReached Int      @default(1)
+  correctEats  Int      @default(0)
+  wrongEats    Int      @default(0)
+  avgReactionMs Int     @default(0)
+  bestStreak   Int      @default(0)
+
+  student Student     @relation(fields: [studentId], references: [id])
+  events  GameEvent[]
+
+  @@index([studentId, mode, startedAt])
+}
+
+model GameEvent {
+  id         String   @id @default(uuid())
+  sessionId  String
+  createdAt  DateTime @default(now())
+  type       String
+  isCorrect  Boolean
+  reactionMs Int
+  value      String
+
+  session GameSession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, createdAt])
+}
+
+model StudentBestScore {
+  id        String   @id @default(uuid())
+  studentId String
+  mode      GameMode
+  bestScore Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, mode])
+  @@index([mode, bestScore])
+}

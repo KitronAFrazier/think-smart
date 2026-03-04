@@ -1,0 +1,4 @@
+approval_policy = "on-request"
+
+[env]
+NODE_ENV = "development"
