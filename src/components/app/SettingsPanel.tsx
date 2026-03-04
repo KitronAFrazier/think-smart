@@ -11,6 +11,13 @@ type SettingsPanelProps = {
   currentPlan: PlanTier;
 };
 
+type UpdateProfileResponse = {
+  profile?: {
+    fullName?: string;
+  };
+  error?: string;
+};
+
 type LocalSettings = {
   displayName: string;
   schoolYearStartDate: string;
@@ -51,6 +58,7 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
   const [mounted, setMounted] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     try {
@@ -68,8 +76,19 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
     }
   }, [defaults]);
 
-  function saveSettings() {
+  async function saveSettings() {
+    setSavingProfile(true);
     try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName: settings.displayName }),
+      });
+      const payload = (await response.json()) as UpdateProfileResponse;
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not update profile.");
+      }
+
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
       const prefsForServer = {
         displayName: settings.displayName,
@@ -79,8 +98,10 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
       const now = new Date().toLocaleString();
       setSavedAt(now);
       setMessage("Settings saved.");
-    } catch {
-      setMessage("Could not save settings in this browser.");
+    } catch (saveError) {
+      setMessage(saveError instanceof Error ? saveError.message : "Could not save settings in this browser.");
+    } finally {
+      setSavingProfile(false);
     }
   }
 
@@ -116,7 +137,7 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
           <span className="badge purple">{PLAN_LABELS[currentPlan]}</span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="settings-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Display Name</label>
             <input
@@ -149,7 +170,7 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
 
       <div className="card">
         <div className="section-title" style={{ marginBottom: 12 }}>Preferences</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <div className="settings-grid-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Timezone</label>
             <select
@@ -230,7 +251,7 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
 
       <div className="card">
         <div className="section-title" style={{ marginBottom: 12 }}>Privacy & Security</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="settings-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label className="task-item" style={{ border: "1px solid var(--border)", borderRadius: 10 }}>
             <input
               type="checkbox"
@@ -270,8 +291,8 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
             <button type="button" className="btn btn-secondary btn-sm" onClick={resetSettings}>
               Reset
             </button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={saveSettings}>
-              Save Changes
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => void saveSettings()} disabled={savingProfile}>
+              {savingProfile ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </div>

@@ -12,6 +12,37 @@ import {
   mockZones,
 } from "@/lib/mock-data";
 
+function isMissingColumnError(message: string | undefined, column: string): boolean {
+  if (!message) {
+    return false;
+  }
+
+  const text = message.toLowerCase();
+  return text.includes("column") && text.includes(column.toLowerCase()) && text.includes("schema cache");
+}
+
+async function selectStudentsWithOptionalAvatar(
+  auth: NonNullable<Awaited<ReturnType<typeof getServerAuthContext>>>,
+) {
+  const withAvatar = await auth.client
+    .from("students")
+    .select("id, first_name, grade_level, avatar_text, xp, streak")
+    .order("created_at", { ascending: true });
+
+  if (!withAvatar.error) {
+    return withAvatar;
+  }
+
+  if (isMissingColumnError(withAvatar.error.message, "avatar_text")) {
+    return auth.client
+      .from("students")
+      .select("id, first_name, grade_level, xp, streak")
+      .order("created_at", { ascending: true });
+  }
+
+  return withAvatar;
+}
+
 function relatedStudentFirstName(input: unknown): string | undefined {
   if (Array.isArray(input)) {
     const first = input[0] as { first_name?: unknown } | undefined;
@@ -39,10 +70,7 @@ export async function getDashboardData() {
   }
 
   const [studentsRes, assignmentsRes, attendanceRes] = await Promise.all([
-    auth.client
-      .from("students")
-      .select("id, first_name, grade_level, avatar_text, xp, streak")
-      .order("created_at", { ascending: true }),
+    selectStudentsWithOptionalAvatar(auth),
     auth.client
       .from("assignments")
       .select("id, title, subject, due_date, status, students(first_name)")
@@ -56,7 +84,10 @@ export async function getDashboardData() {
       id: student.id,
       name: student.first_name,
       grade: student.grade_level,
-      avatar: student.avatar_text ?? student.first_name.slice(0, 2).toUpperCase(),
+      avatar:
+        ("avatar_text" in student && typeof student.avatar_text === "string"
+          ? student.avatar_text
+          : null) ?? student.first_name.slice(0, 2).toUpperCase(),
       xp: student.xp ?? 0,
       streak: student.streak ?? 0,
       progress: {},
@@ -108,15 +139,15 @@ export async function getStudentsData() {
   }
 
   const [studentsRes, progressRes] = await Promise.all([
+    selectStudentsWithOptionalAvatar(auth),
     auth.client
-      .from("students")
-      .select("id, first_name, grade_level, avatar_text, xp, streak")
-      .order("created_at", { ascending: true }),
-    auth.client.from("progress").select("student_id, subject, score_percent"),
+      .from("progress")
+      .select("student_id, subject, assignment_title, letter_grade, score_percent, recorded_at")
+      .order("recorded_at", { ascending: false }),
   ]);
 
   if (!studentsRes.data || studentsRes.data.length === 0) {
-    return { students: mockStudents, grades: mockGrades };
+    return { students: [], grades: [] };
   }
 
   const progressByStudent = new Map<string, Record<string, number>>();
@@ -131,13 +162,33 @@ export async function getStudentsData() {
     id: student.id,
     name: student.first_name,
     grade: student.grade_level,
-    avatar: student.avatar_text ?? student.first_name.slice(0, 2).toUpperCase(),
+    avatar:
+      ("avatar_text" in student && typeof student.avatar_text === "string"
+        ? student.avatar_text
+        : null) ?? student.first_name.slice(0, 2).toUpperCase(),
     xp: student.xp ?? 0,
     streak: student.streak ?? 0,
-    progress: progressByStudent.get(student.id) ?? { Math: 0 },
+    progress: progressByStudent.get(student.id) ?? {},
   }));
 
-  return { students, grades: mockGrades };
+  const studentById = new Map(studentsRes.data.map((student) => [student.id, student]));
+
+  const grades =
+    progressRes.data?.map((row) => {
+      const student = studentById.get(row.student_id);
+      return {
+        student: student?.first_name ?? "Student",
+        subject: row.subject,
+        lesson: row.assignment_title ?? "Assignment",
+        grade: row.score_percent ?? 0,
+        letter: row.letter_grade ?? "N/A",
+        date: row.recorded_at
+          ? new Date(row.recorded_at).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })
+          : "",
+      };
+    }) ?? [];
+
+  return { students, grades };
 }
 
 export async function getPlannerData() {
@@ -178,7 +229,21 @@ export async function getProgressData() {
 
   const [progressRes, studentsRes] = await Promise.all([
     auth.client.from("progress").select("student_id, subject, assignment_title, letter_grade, score_percent, recorded_at"),
-    auth.client.from("students").select("id, first_name, grade_level, avatar_text"),
+    (async () => {
+      const withAvatar = await auth.client
+        .from("students")
+        .select("id, first_name, grade_level, avatar_text");
+
+      if (!withAvatar.error) {
+        return withAvatar;
+      }
+
+      if (isMissingColumnError(withAvatar.error.message, "avatar_text")) {
+        return auth.client.from("students").select("id, first_name, grade_level");
+      }
+
+      return withAvatar;
+    })(),
   ]);
 
   if (!progressRes.data?.length || !studentsRes.data?.length) {
@@ -201,7 +266,10 @@ export async function getProgressData() {
   const students = studentsRes.data.map((row) => ({
     name: row.first_name,
     grade: row.grade_level,
-    avatar: row.avatar_text ?? row.first_name.slice(0, 2).toUpperCase(),
+    avatar:
+      ("avatar_text" in row && typeof row.avatar_text === "string"
+        ? row.avatar_text
+        : null) ?? row.first_name.slice(0, 2).toUpperCase(),
     xp: 0,
     streak: 0,
     progress: {},

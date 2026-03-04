@@ -7,8 +7,18 @@ export default async function SettingsPage() {
   const user = auth?.user;
   const userMeta = user?.user_metadata as { full_name?: string; name?: string; username?: string } | null;
   const email = user?.email ?? "user@thinksmart.local";
+
+  const profileRes = user
+    ? await auth.client.from("profiles").select("full_name").eq("id", user.id).maybeSingle()
+    : { data: null };
+
   const initialDisplayName =
-    userMeta?.full_name?.trim() || userMeta?.name?.trim() || userMeta?.username?.trim() || email.split("@")[0] || "Parent";
+    profileRes.data?.full_name?.trim() ||
+    userMeta?.full_name?.trim() ||
+    userMeta?.name?.trim() ||
+    userMeta?.username?.trim() ||
+    email.split("@")[0] ||
+    "Parent";
 
   return (
     <div className="page">

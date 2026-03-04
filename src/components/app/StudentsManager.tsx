@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Flame, Pencil, Sparkles, Trash2, UserPlus } from "lucide-react";
+import { BookOpen, Flame, Pencil, Save, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import { safeJsonParse } from "@/lib/http";
 import { getCurriculumForGrade, gradeCurriculum, gradeLevelOptions } from "@/lib/grade-curriculum";
 
@@ -39,11 +39,19 @@ type DeleteStudentResponse = {
   error?: string;
 };
 
+type UpdateStudentResponse = {
+  student?: Student;
+  error?: string;
+};
+
 export default function StudentsManager({ initialStudents, grades }: StudentsManagerProps) {
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(initialStudents[0]?.id ?? null);
   const [firstName, setFirstName] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editGradeLevel, setEditGradeLevel] = useState("");
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +60,19 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
     [selectedStudentId, students],
   );
   const activeCurriculum = activeStudent ? getCurriculumForGrade(activeStudent.grade) : undefined;
+
+  function beginEditingStudent(student: Student) {
+    setEditingStudentId(student.id);
+    setEditFirstName(student.name);
+    setEditGradeLevel(student.grade);
+    setError(null);
+  }
+
+  function cancelEditingStudent() {
+    setEditingStudentId(null);
+    setEditFirstName("");
+    setEditGradeLevel("");
+  }
 
   async function handleAddStudent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,6 +111,47 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
     }
   }
 
+  async function handleSaveStudentProfile() {
+    if (!editingStudentId) {
+      return;
+    }
+
+    const trimmedName = editFirstName.trim();
+    const trimmedGrade = editGradeLevel.trim();
+
+    if (!trimmedName || !trimmedGrade) {
+      setError("First name and grade level are required.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/students", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingStudentId, firstName: trimmedName, gradeLevel: trimmedGrade }),
+      });
+
+      const json = await safeJsonParse<UpdateStudentResponse>(response);
+      if (!response.ok || !json.student) {
+        throw new Error(json.error ?? "Could not update student profile.");
+      }
+
+      setStudents((previous) =>
+        previous.map((student) =>
+          student.id === editingStudentId ? { ...student, ...json.student, progress: student.progress } : student,
+        ),
+      );
+      cancelEditingStudent();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "Could not update student profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleRemoveStudent(studentId: string) {
     const target = students.find((student) => student.id === studentId);
     const label = target?.name ?? "this student";
@@ -116,6 +178,7 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
         setSelectedStudentId(remaining[0]?.id ?? null);
         return remaining;
       });
+      cancelEditingStudent();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Could not remove student.");
     } finally {
@@ -129,13 +192,13 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1>My Students</h1>
-            <p>{students.length} students enrolled · School Year 2025–2026</p>
+            <p>{students.length} students enrolled · Click a student card to view progress</p>
           </div>
         </div>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <form onSubmit={handleAddStudent} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10 }}>
+        <form onSubmit={handleAddStudent} className="students-form-grid">
           <input
             className="form-input"
             placeholder="First name"
@@ -228,8 +291,29 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
               {activeStudent.avatar}
             </div>
             <div>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 700 }}>{activeStudent.name}</div>
-              <div style={{ color: "var(--text-3)" }}>{activeStudent.grade}</div>
+              {editingStudentId === activeStudent.id ? (
+                <div className="students-edit-grid">
+                  <input
+                    className="form-input"
+                    value={editFirstName}
+                    onChange={(event) => setEditFirstName(event.target.value)}
+                    placeholder="First name"
+                    disabled={saving}
+                  />
+                  <input
+                    className="form-input"
+                    value={editGradeLevel}
+                    onChange={(event) => setEditGradeLevel(event.target.value)}
+                    placeholder="Grade level"
+                    disabled={saving}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 700 }}>{activeStudent.name}</div>
+                  <div style={{ color: "var(--text-3)" }}>{activeStudent.grade}</div>
+                </>
+              )}
               <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                 <span className="badge gold">
                   <Flame className="icon-svg" /> {activeStudent.streak}-day streak
@@ -239,12 +323,26 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
                 </span>
               </div>
             </div>
-            <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-              <button className="btn btn-secondary btn-sm" type="button" disabled>
-                <Pencil className="icon-svg" /> Edit
-              </button>
+            <div className="students-actions-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              {editingStudentId === activeStudent.id ? (
+                <>
+                  <button className="btn btn-primary btn-sm" type="button" onClick={() => void handleSaveStudentProfile()} disabled={saving}>
+                    <Save className="icon-svg" /> Save
+                  </button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={cancelEditingStudent} disabled={saving}>
+                    <X className="icon-svg" /> Cancel
+                  </button>
+                </>
+              ) : (
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => beginEditingStudent(activeStudent)}>
+                  <Pencil className="icon-svg" /> Edit
+                </button>
+              )}
               <a className="btn btn-primary btn-sm" href="/planner">
                 <BookOpen className="icon-svg" /> Planner
+              </a>
+              <a className="btn btn-primary btn-sm" href={`/progress?student=${encodeURIComponent(activeStudent.name)}`}>
+                View Progress
               </a>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void handleRemoveStudent(activeStudent.id)} disabled={saving}>
                 <Trash2 className="icon-svg" /> Remove
