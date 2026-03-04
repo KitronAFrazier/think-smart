@@ -514,24 +514,63 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
               {activeStudent.grade} Required Subjects & Classes
             </div>
             {activeCurriculum ? (
-              <div className="grid-2" style={{ gap: 16 }}>
-                <div className="card" style={{ padding: 14 }}>
-                  <div style={{ fontSize: "0.82rem", fontWeight: 700, marginBottom: 10, color: "var(--text-2)" }}>Required Subjects</div>
-                  <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 6 }}>
-                    {activeCurriculum.requiredSubjects.map((subject) => (
-                      <li key={subject}>{subject}</li>
-                    ))}
-                  </ul>
+              <>
+                <div className="grid-2" style={{ gap: 16 }}>
+                  <div className="card" style={{ padding: 14 }}>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 700, marginBottom: 10, color: "var(--text-2)" }}>Required Subjects</div>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 6 }}>
+                      {activeCurriculum.requiredSubjects.map((subject) => (
+                        <li key={subject}>{subject}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="card" style={{ padding: 14 }}>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 700, marginBottom: 10, color: "var(--text-2)" }}>Suggested Classes</div>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 6 }}>
+                      {activeCurriculum.classes.map((className) => (
+                        <li key={className}>{className}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-                <div className="card" style={{ padding: 14 }}>
-                  <div style={{ fontSize: "0.82rem", fontWeight: 700, marginBottom: 10, color: "var(--text-2)" }}>Suggested Classes</div>
-                  <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 6 }}>
-                    {activeCurriculum.classes.map((className) => (
-                      <li key={className}>{className}</li>
-                    ))}
-                  </ul>
-                </div>
+
+                <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+                {activeCurriculum.curriculumPacks.map((pack) => (
+                  <div key={pack.title} className="card" style={{ padding: 14 }}>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 700 }}>{pack.title}</div>
+                    <p style={{ margin: "6px 0 10px", color: "var(--text-3)", fontSize: "0.82rem" }}>{pack.summary}</p>
+                    <div className="grid-2" style={{ gap: 14 }}>
+                      <div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, marginBottom: 6, color: "var(--text-2)" }}>Included Courses</div>
+                        <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 4 }}>
+                          {pack.includedCourses.map((course) => (
+                            <li key={course}>{course}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, marginBottom: 6, color: "var(--text-2)" }}>Recommended Materials</div>
+                        <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 4 }}>
+                          {pack.recommendedMaterials.map((material) => (
+                            <li key={material}>{material}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, marginBottom: 4, color: "var(--text-2)" }}>Texas Standards Alignment</div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-3)" }}>{pack.texasAlignment.join(" · ")}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, marginBottom: 4, color: "var(--text-2)" }}>Federal Standards Alignment</div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-3)" }}>{pack.federalAlignment.join(" · ")}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
+              </>
             ) : (
               <div className="badge red">No curriculum template configured for this grade level.</div>
             )}
@@ -555,6 +594,18 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
                 Required: {grade.requiredSubjects.join(" · ")}
               </div>
               <div style={{ fontSize: "0.82rem", color: "var(--text-2)" }}>Classes: {grade.classes.join(" · ")}</div>
+              {grade.curriculumPacks.map((pack) => (
+                <div key={pack.title} style={{ marginTop: 8, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                  <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-2)" }}>{pack.title}</div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: 4 }}>{pack.summary}</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-3)", marginTop: 5 }}>
+                    TX: {pack.texasAlignment.join(" · ")}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-3)", marginTop: 3 }}>
+                    Federal: {pack.federalAlignment.join(" · ")}
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
