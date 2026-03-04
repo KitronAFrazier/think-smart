@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { BookOpen, Flame, Pencil, Save, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import { safeJsonParse } from "@/lib/http";
+import { getCurriculumForGrade, gradeCurriculum, gradeLevelOptions } from "@/lib/grade-curriculum";
 
 type Student = {
   id: string;
@@ -58,6 +59,7 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
     () => students.find((student) => student.id === selectedStudentId) ?? students[0] ?? null,
     [selectedStudentId, students],
   );
+  const activeCurriculum = activeStudent ? getCurriculumForGrade(activeStudent.grade) : undefined;
 
   function beginEditingStudent(student: Student) {
     setEditingStudentId(student.id);
@@ -205,14 +207,16 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
             disabled={saving}
             required
           />
-          <input
-            className="form-input"
-            placeholder="Grade level (e.g. 3rd Grade)"
-            value={gradeLevel}
-            onChange={(event) => setGradeLevel(event.target.value)}
-            disabled={saving}
-            required
-          />
+          <select className="form-select" value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)} disabled={saving} required>
+            <option value="" disabled>
+              Select grade level
+            </option>
+            {gradeLevelOptions.map((gradeOption) => (
+              <option key={gradeOption} value={gradeOption}>
+                {gradeOption}
+              </option>
+            ))}
+          </select>
           <button className="btn btn-gold" type="submit" disabled={saving}>
             <UserPlus className="icon-svg" /> {saving ? "Saving..." : "Add Student"}
           </button>
@@ -387,12 +391,57 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
               </a>
             </div>
           </div>
+
+          <div style={{ marginTop: 24 }}>
+            <div className="section-title" style={{ marginBottom: 14 }}>
+              {activeStudent.grade} Required Subjects & Classes
+            </div>
+            {activeCurriculum ? (
+              <div className="grid-2" style={{ gap: 16 }}>
+                <div className="card" style={{ padding: 14 }}>
+                  <div style={{ fontSize: "0.82rem", fontWeight: 700, marginBottom: 10, color: "var(--text-2)" }}>Required Subjects</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 6 }}>
+                    {activeCurriculum.requiredSubjects.map((subject) => (
+                      <li key={subject}>{subject}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="card" style={{ padding: 14 }}>
+                  <div style={{ fontSize: "0.82rem", fontWeight: 700, marginBottom: 10, color: "var(--text-2)" }}>Suggested Classes</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", display: "grid", gap: 6 }}>
+                    {activeCurriculum.classes.map((className) => (
+                      <li key={className}>{className}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <div className="badge red">No curriculum template configured for this grade level.</div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="card empty-state">
           <p>No students yet. Add your first student to get started.</p>
         </div>
       )}
+
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="section-title" style={{ marginBottom: 14 }}>
+          K–8 Curriculum Breakdown
+        </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          {gradeCurriculum.map((grade) => (
+            <div key={grade.label} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>{grade.label}</div>
+              <div style={{ fontSize: "0.8rem", color: "var(--text-3)", marginBottom: 8 }}>
+                Required: {grade.requiredSubjects.join(" · ")}
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--text-2)" }}>Classes: {grade.classes.join(" · ")}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

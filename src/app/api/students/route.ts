@@ -8,14 +8,24 @@ type CreateStudentPayload = {
   gradeLevel?: string;
 };
 
-type UpdateStudentPayload = {
-  id?: string;
-  firstName?: string;
-  gradeLevel?: string;
-};
+const VALID_GRADE_LEVELS = new Set([
+  "Kindergarten",
+  "1st Grade",
+  "2nd Grade",
+  "3rd Grade",
+  "4th Grade",
+  "5th Grade",
+  "6th Grade",
+  "7th Grade",
+  "8th Grade",
+]);
 
 function normalizeAvatarText(firstName: string): string {
   return firstName.trim().slice(0, 2).toUpperCase();
+}
+
+function isValidGradeLevel(gradeLevel: string): boolean {
+  return VALID_GRADE_LEVELS.has(gradeLevel);
 }
 
 function isMissingColumnError(message: string | undefined, column: string): boolean {
@@ -49,6 +59,10 @@ export async function POST(request: Request) {
 
   if (!firstName || !gradeLevel) {
     return NextResponse.json({ error: "First name and grade level are required." }, { status: 400 });
+  }
+
+  if (!isValidGradeLevel(gradeLevel)) {
+    return NextResponse.json({ error: "Grade level must be Kindergarten through 8th Grade." }, { status: 400 });
   }
 
   const withAvatar = await auth.client
@@ -141,58 +155,4 @@ export async function DELETE(request: Request) {
   }
 
   return NextResponse.json({ success: true });
-}
-
-export async function PATCH(request: Request) {
-  const auth = await getServerAuthContext();
-  if (!auth?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let body: UpdateStudentPayload;
-  try {
-    body = (await request.json()) as UpdateStudentPayload;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const studentId = body.id?.trim();
-  const firstName = body.firstName?.trim();
-  const gradeLevel = body.gradeLevel?.trim();
-
-  if (!studentId) {
-    return NextResponse.json({ error: "Student id is required." }, { status: 400 });
-  }
-
-  if (!firstName || !gradeLevel) {
-    return NextResponse.json({ error: "First name and grade level are required." }, { status: 400 });
-  }
-
-  const { data, error } = await auth.client
-    .from("students")
-    .update({
-      first_name: firstName,
-      grade_level: gradeLevel,
-      avatar_text: normalizeAvatarText(firstName),
-    })
-    .eq("id", studentId)
-    .eq("user_id", auth.user.id)
-    .select("id, first_name, grade_level, avatar_text, xp, streak")
-    .single();
-
-  if (error || !data) {
-    return NextResponse.json({ error: error?.message ?? "Could not update student." }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    student: {
-      id: data.id,
-      name: data.first_name,
-      grade: data.grade_level,
-      avatar: data.avatar_text ?? normalizeAvatarText(data.first_name),
-      xp: data.xp ?? 0,
-      streak: data.streak ?? 0,
-      progress: {},
-    },
-  });
 }
