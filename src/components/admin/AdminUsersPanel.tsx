@@ -16,11 +16,15 @@ type SubscriptionStatus =
   | "paused"
   | "inactive";
 
+type AdminDisplayRole = AppRole | "student";
+
 type AdminUser = {
   id: string;
   email: string | null;
   username?: string | null;
-  role: AppRole;
+  role: AdminDisplayRole;
+  parentUserId: string | null;
+  relationship: "admin" | "primary_parent" | "secondary_parent" | "student";
   subscription: {
     plan: PlanTier;
     status: string;
@@ -71,7 +75,7 @@ type AdminUsersPanelProps = {
   currentUserId: string;
 };
 
-type RoleFilter = "all" | AppRole;
+type RoleFilter = "all" | AdminDisplayRole;
 type MembershipFilter = "all" | "active" | "inactive";
 
 type PendingSubscriptionEdit = {
@@ -225,6 +229,36 @@ export default function AdminUsersPanel({ currentUserId }: AdminUsersPanelProps)
       }),
     [membershipFilter, roleFilter, users],
   );
+
+  const visibleUsersById = useMemo(() => new Map(visibleUsers.map((user) => [user.id, user])), [visibleUsers]);
+
+  const orderedUsers = useMemo(() => {
+    const byId = new Map(visibleUsers.map((user) => [user.id, user]));
+    const childrenByParent = new Map<string, AdminUser[]>();
+    const ordered: AdminUser[] = [];
+
+    for (const user of visibleUsers) {
+      if (!user.parentUserId || !byId.has(user.parentUserId)) {
+        ordered.push(user);
+        continue;
+      }
+
+      const existing = childrenByParent.get(user.parentUserId) ?? [];
+      existing.push(user);
+      childrenByParent.set(user.parentUserId, existing);
+    }
+
+    const flattened: AdminUser[] = [];
+    for (const user of ordered) {
+      flattened.push(user);
+      const children = childrenByParent.get(user.id);
+      if (children?.length) {
+        flattened.push(...children);
+      }
+    }
+
+    return flattened;
+  }, [visibleUsers]);
 
   const pageStats = useMemo(() => {
     const activeMemberships = users.filter((user) => isMembershipActive(user.subscription.status)).length;
@@ -459,12 +493,13 @@ export default function AdminUsersPanel({ currentUserId }: AdminUsersPanelProps)
           value={roleFilter}
           onChange={(event) => {
             const next = event.target.value;
-            setRoleFilter(next === "admin" ? "admin" : next === "parent" ? "parent" : "all");
+            setRoleFilter(next === "admin" ? "admin" : next === "parent" ? "parent" : next === "student" ? "student" : "all");
           }}
         >
           <option value="all">All roles</option>
           <option value="admin">Admin only</option>
           <option value="parent">Parent only</option>
+          <option value="student">Student only</option>
         </select>
         <select
           className="form-select"
@@ -556,13 +591,17 @@ export default function AdminUsersPanel({ currentUserId }: AdminUsersPanelProps)
               </tr>
             </thead>
             <tbody>
-              {visibleUsers.map((user) => {
+              {orderedUsers.map((user) => {
                 const isSelf = user.id === currentUserId;
                 const isSavingRole = savingUserId === user.id;
                 const isSavingMembership = savingMembershipUserId === user.id;
                 const isGranting = grantingMonthUserId === user.id;
                 const userIdentity = user.username ?? user.email ?? "(no identifier)";
                 const secondaryIdentity = user.username && user.email ? user.email : null;
+                const parentUser = user.parentUserId ? visibleUsersById.get(user.parentUserId) ?? null : null;
+                const isNested = Boolean(parentUser);
+                const hasInheritedMembership = Boolean(user.parentUserId);
+                const roleBadgeClass = user.role === "admin" ? "purple" : user.role === "student" ? "blue" : "gray";
                 const pendingEdit = subscriptionEdits[user.id] ?? {
                   plan: user.subscription.plan,
                   status: normalizeSubscriptionStatus(user.subscription.status),
@@ -571,88 +610,105 @@ export default function AdminUsersPanel({ currentUserId }: AdminUsersPanelProps)
                 return (
                   <tr key={user.id}>
                     <td>
-                      <div style={{ fontWeight: 500 }}>{userIdentity}</div>
+                      <div style={{ fontWeight: 500, paddingLeft: isNested ? 18 : 0 }}>{isNested ? `- ${userIdentity}` : userIdentity}</div>
                       <div style={{ color: "var(--text-3)", fontSize: "0.75rem", marginTop: 3 }}>
                         {isSelf ? "You" : "User"} - {user.id}
                       </div>
+                      {parentUser ? (
+                        <div style={{ color: "var(--text-3)", fontSize: "0.72rem", marginTop: 2 }}>
+                          Under {parentUser.username ?? parentUser.email ?? parentUser.id}
+                        </div>
+                      ) : null}
                       {secondaryIdentity ? (
                         <div style={{ color: "var(--text-3)", fontSize: "0.72rem", marginTop: 2 }}>{secondaryIdentity}</div>
                       ) : null}
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <span className={`badge ${user.role === "admin" ? "purple" : "gray"}`}>{user.role}</span>
-                        <select
-                          className="form-select"
-                          style={{ width: 105 }}
-                          value={user.role}
-                          disabled={isSavingRole}
-                          onChange={(event) => {
-                            const nextRole = event.target.value === "admin" ? "admin" : "parent";
-                            if (nextRole === user.role) {
-                              return;
-                            }
+                        <span className={`badge ${roleBadgeClass}`}>{user.role}</span>
+                        {user.role === "student" ? (
+                          <span style={{ color: "var(--text-3)", fontSize: "0.72rem" }}>Managed by student login setup</span>
+                        ) : (
+                          <select
+                            className="form-select"
+                            style={{ width: 105 }}
+                            value={user.role}
+                            disabled={isSavingRole}
+                            onChange={(event) => {
+                              const nextRole = event.target.value === "admin" ? "admin" : "parent";
+                              if (nextRole === user.role) {
+                                return;
+                              }
 
-                            void updateRole(user.id, nextRole);
-                          }}
-                        >
-                          <option value="parent" disabled={isSelf}>
-                            parent
-                          </option>
-                          <option value="admin">admin</option>
-                        </select>
+                              void updateRole(user.id, nextRole);
+                            }}
+                          >
+                            <option value="parent" disabled={isSelf}>
+                              parent
+                            </option>
+                            <option value="admin">admin</option>
+                          </select>
+                        )}
                       </div>
                     </td>
                     <td>
                       <div className="badge blue" style={{ marginBottom: 6 }}>
                         {PLAN_LABELS[user.subscription.plan]}
                       </div>
-                      <select
-                        className="form-select"
-                        value={pendingEdit.plan}
-                        disabled={isSavingMembership || isGranting}
-                        onChange={(event) => {
-                          const nextPlan = normalizePlan(event.target.value);
-                          setSubscriptionEdits((previous) => ({
-                            ...previous,
-                            [user.id]: {
-                              ...pendingEdit,
-                              plan: nextPlan,
-                            },
-                          }));
-                        }}
-                      >
-                        <option value="free">free</option>
-                        <option value="family">family</option>
-                        <option value="family_plus">family_plus</option>
-                        <option value="co_op">co_op</option>
-                      </select>
+                      {hasInheritedMembership ? (
+                        <div style={{ color: "var(--text-3)", fontSize: "0.72rem" }}>Inherited from parent account</div>
+                      ) : (
+                        <select
+                          className="form-select"
+                          value={pendingEdit.plan}
+                          disabled={isSavingMembership || isGranting}
+                          onChange={(event) => {
+                            const nextPlan = normalizePlan(event.target.value);
+                            setSubscriptionEdits((previous) => ({
+                              ...previous,
+                              [user.id]: {
+                                ...pendingEdit,
+                                plan: nextPlan,
+                              },
+                            }));
+                          }}
+                        >
+                          <option value="free">free</option>
+                          <option value="family">family</option>
+                          <option value="family_plus">family_plus</option>
+                          <option value="co_op">co_op</option>
+                        </select>
+                      )}
                     </td>
                     <td>
                       <div className={`badge ${isMembershipActive(user.subscription.status) ? "green" : "gray"}`} style={{ marginBottom: 6 }}>
                         {formatSubscriptionStatus(user.subscription.status)}
                       </div>
-                      <select
-                        className="form-select"
-                        value={pendingEdit.status}
-                        disabled={isSavingMembership || isGranting}
-                        onChange={(event) => {
-                          const nextStatus = normalizeSubscriptionStatus(event.target.value);
-                          setSubscriptionEdits((previous) => ({
-                            ...previous,
-                            [user.id]: {
-                              ...pendingEdit,
-                              status: nextStatus,
-                            },
-                          }));
-                        }}
-                      >
-                        {SUBSCRIPTION_STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
+                      {hasInheritedMembership ? (
+                        <div style={{ color: "var(--text-3)", fontSize: "0.72rem" }}>Inherited from parent account</div>
+                      ) : (
+                        <select
+                          className="form-select"
+                          value={pendingEdit.status}
+                          disabled={isSavingMembership || isGranting}
+                          onChange={(event) => {
+                            const nextStatus = normalizeSubscriptionStatus(event.target.value);
+                            setSubscriptionEdits((previous) => ({
+                              ...previous,
+                              [user.id]: {
+                                ...pendingEdit,
+                                status: nextStatus,
+                              },
+                            }));
+                          }}
+                        >
+                          {SUBSCRIPTION_STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </td>
                     <td>{formatDate(user.subscription.currentPeriodEnd)}</td>
                     <td>
@@ -660,7 +716,7 @@ export default function AdminUsersPanel({ currentUserId }: AdminUsersPanelProps)
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
-                          disabled={isSavingMembership || isGranting}
+                          disabled={hasInheritedMembership || isSavingMembership || isGranting}
                           onClick={() => void updateSubscription(user.id)}
                         >
                           {isSavingMembership ? "Saving..." : "Save membership"}
@@ -668,7 +724,7 @@ export default function AdminUsersPanel({ currentUserId }: AdminUsersPanelProps)
                         <button
                           type="button"
                           className="btn btn-gold btn-sm"
-                          disabled={isSavingMembership || isGranting}
+                          disabled={hasInheritedMembership || isSavingMembership || isGranting}
                           onClick={() => void grantOneMonth(user.id)}
                         >
                           {isGranting ? "Granting..." : "Grant 1 month free"}

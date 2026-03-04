@@ -7,12 +7,15 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 export const runtime = "nodejs";
 
 type ProfileUserKey = "id" | "user_id";
+type AdminDisplayRole = AppRole | "student";
 
 type AdminUser = {
   id: string;
   email: string | null;
   username: string | null;
-  role: AppRole;
+  role: AdminDisplayRole;
+  parentUserId: string | null;
+  relationship: "admin" | "primary_parent" | "secondary_parent" | "student";
   subscription: {
     plan: PlanTier;
     status: string;
@@ -85,7 +88,7 @@ function isMissingColumnError(message: string | undefined, column: string): bool
   }
 
   const text = message.toLowerCase();
-  return text.includes("column") && text.includes(column.toLowerCase()) && text.includes("does not exist");
+  return text.includes("column") && text.includes(column.toLowerCase()) && (text.includes("does not exist") || text.includes("schema cache"));
 }
 
 function isMissingTableError(message: string | undefined, table: string): boolean {
@@ -130,15 +133,18 @@ async function resolveProfilesUserKey(): Promise<ProfileUserKey> {
   throw new Error(byIdResult.error.message);
 }
 
-async function getRolesByUserId(userIds: string[]): Promise<Map<string, AppRole>> {
-  const rolesByUserId = new Map<string, AppRole>();
+type ProfileLookup = {
+  role: AppRole;
+};
+
+async function getProfilesByUserId(userIds: string[]): Promise<Map<string, ProfileLookup>> {
+  const profilesByUserId = new Map<string, ProfileLookup>();
   if (!userIds.length) {
-    return rolesByUserId;
+    return profilesByUserId;
   }
 
   const key = await resolveProfilesUserKey();
   const supabase = getSupabaseServiceClient();
-
   const { data, error } = await supabase
     .from("profiles")
     .select(`${key}, role`)
@@ -150,12 +156,90 @@ async function getRolesByUserId(userIds: string[]): Promise<Map<string, AppRole>
 
   for (const row of (data ?? []) as Array<Record<ProfileUserKey | "role", unknown>>) {
     const value = row[key];
-    if (typeof value === "string") {
-      rolesByUserId.set(value, normalizeRole(typeof row.role === "string" ? row.role : null));
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    profilesByUserId.set(value, {
+      role: normalizeRole(typeof row.role === "string" ? row.role : null),
+    });
+  }
+
+  return profilesByUserId;
+}
+
+function normalizeEmail(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+}
+
+async function getPrimaryParentsBySecondaryEmail(emails: string[]): Promise<Map<string, string>> {
+  const parentBySecondaryEmail = new Map<string, string>();
+  if (!emails.length) {
+    return parentBySecondaryEmail;
+  }
+
+  const key = await resolveProfilesUserKey();
+  const supabase = getSupabaseServiceClient();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(`${key}, secondary_parent_email`)
+    .not("secondary_parent_email", "is", null);
+
+  if (error) {
+    if (isMissingColumnError(error.message, "secondary_parent_email")) {
+      return parentBySecondaryEmail;
+    }
+    throw new Error(error.message);
+  }
+
+  const candidateEmails = new Set(emails.map((email) => email.toLowerCase()));
+  for (const row of (data ?? []) as Array<Record<ProfileUserKey | "secondary_parent_email", unknown>>) {
+    const secondaryParentEmail = normalizeEmail(typeof row.secondary_parent_email === "string" ? row.secondary_parent_email : null);
+    if (!secondaryParentEmail || !candidateEmails.has(secondaryParentEmail)) {
+      continue;
+    }
+
+    const parentId = row[key];
+    if (typeof parentId === "string" && parentId) {
+      parentBySecondaryEmail.set(secondaryParentEmail, parentId);
     }
   }
 
-  return rolesByUserId;
+  return parentBySecondaryEmail;
+}
+
+async function getStudentOwnerByAuthUserId(userIds: string[]): Promise<Map<string, string>> {
+  const ownerByAuthUserId = new Map<string, string>();
+  if (!userIds.length) {
+    return ownerByAuthUserId;
+  }
+
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("students")
+    .select("user_id, auth_user_id")
+    .in("auth_user_id", userIds);
+
+  if (error) {
+    if (isMissingTableError(error.message, "students") || isMissingColumnError(error.message, "auth_user_id")) {
+      return ownerByAuthUserId;
+    }
+    throw new Error(error.message);
+  }
+
+  for (const row of data ?? []) {
+    if (typeof row.auth_user_id === "string" && typeof row.user_id === "string") {
+      ownerByAuthUserId.set(row.auth_user_id, row.user_id);
+    }
+  }
+
+  return ownerByAuthUserId;
 }
 
 async function getSubscriptionsByUserId(userIds: string[]): Promise<Map<string, { plan: PlanTier; status: string; currentPeriodEnd: string | null }>> {
@@ -308,22 +392,61 @@ export async function GET(request: Request) {
       }
     }
     const userIds = usersPage.map((user) => user.id);
-    const rolesByUserId = await getRolesByUserId(userIds);
-    const subscriptionsByUserId = await getSubscriptionsByUserId(userIds);
+    const normalizedEmails = usersPage
+      .map((user) => normalizeEmail(user.email))
+      .filter((value): value is string => Boolean(value));
 
-    const users: AdminUser[] = usersPage.map((user) => ({
-      id: user.id,
-      email: user.email ?? null,
-      username: user.user_metadata?.username ?? usernameFromEmail(user.email) ?? null,
-      role: rolesByUserId.get(user.id) ?? "parent",
-      subscription: subscriptionsByUserId.get(user.id) ?? {
-        plan: "free",
+    const [profilesByUserId, parentBySecondaryEmail, studentOwnerByAuthUserId] = await Promise.all([
+      getProfilesByUserId(userIds),
+      getPrimaryParentsBySecondaryEmail(normalizedEmails),
+      getStudentOwnerByAuthUserId(userIds),
+    ]);
+
+    const subscriptionUserIds = new Set<string>(userIds);
+    for (const parentId of parentBySecondaryEmail.values()) {
+      subscriptionUserIds.add(parentId);
+    }
+    for (const parentId of studentOwnerByAuthUserId.values()) {
+      subscriptionUserIds.add(parentId);
+    }
+    const subscriptionsByUserId = await getSubscriptionsByUserId(Array.from(subscriptionUserIds));
+
+    const users: AdminUser[] = usersPage.map((user) => {
+      const profile = profilesByUserId.get(user.id);
+      const baseRole = profile?.role ?? "parent";
+      const email = normalizeEmail(user.email);
+      const studentParentId = studentOwnerByAuthUserId.get(user.id) ?? null;
+      const secondaryParentId = email ? (parentBySecondaryEmail.get(email) ?? null) : null;
+      const isStudent = Boolean(studentParentId);
+      const isSecondaryParent = !isStudent && baseRole !== "admin" && Boolean(secondaryParentId);
+      const parentUserId = studentParentId ?? (isSecondaryParent ? secondaryParentId : null);
+      const relationship: AdminUser["relationship"] = isStudent
+        ? "student"
+        : isSecondaryParent
+          ? "secondary_parent"
+          : baseRole === "admin"
+            ? "admin"
+            : "primary_parent";
+      const role: AdminDisplayRole = isStudent ? "student" : baseRole;
+      const subscriptionSourceUserId = parentUserId ?? user.id;
+      const subscription = subscriptionsByUserId.get(subscriptionSourceUserId) ?? {
+        plan: "free" as PlanTier,
         status: "inactive",
         currentPeriodEnd: null,
-      },
-      createdAt: user.created_at ?? null,
-      lastSignInAt: user.last_sign_in_at ?? null,
-    }));
+      };
+
+      return {
+        id: user.id,
+        email: user.email ?? null,
+        username: user.user_metadata?.username ?? usernameFromEmail(user.email) ?? null,
+        role,
+        parentUserId,
+        relationship,
+        subscription,
+        createdAt: user.created_at ?? null,
+        lastSignInAt: user.last_sign_in_at ?? null,
+      };
+    });
 
     const totalPages = total === null ? null : Math.max(1, Math.ceil(total / perPage));
     const hasPreviousPage = page > 1;
