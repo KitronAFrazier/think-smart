@@ -57,3 +57,7 @@ where id = '<USER_UUID>';
 - For production teams, migrations are still recommended for strict history, but the master file is available for your single-file workflow.
 - `npm run supabase:master` prints the SQL from `supabase/master.sql`.
 - `npm run supabase:master:apply` applies `supabase/master.sql` using Supabase CLI (`supabase db execute --file supabase/master.sql`).
+
+## Product Design Docs
+
+- Game agent blueprint: `docs/think-smart-game-agents.md`
