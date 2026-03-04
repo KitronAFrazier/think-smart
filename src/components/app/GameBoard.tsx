@@ -86,8 +86,9 @@ async function postJSON<T>(url: string, body: unknown): Promise<T> {
   return res.json();
 }
 
-export function GameBoard(props: { initialMode?: Mode }) {
+export function GameBoard(props: { initialMode?: Mode; gameId?: string }) {
   const mode: Mode = props.initialMode ?? "multiples";
+  const gameId = props.gameId;
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
 
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -162,7 +163,7 @@ export function GameBoard(props: { initialMode?: Mode }) {
     try {
       const data = await postJSON<{ sessionId: string; profile: ServerProfile }>(
         "/api/game/session/start",
-        { mode },
+        { mode, gameId },
       );
       const tuned = applyDifficulty(data.profile, nextDifficulty);
       setBackendEnabled(true);
@@ -215,18 +216,31 @@ export function GameBoard(props: { initialMode?: Mode }) {
       const result = await postJSON<{
         ok: true;
         summary: { correctEats: number; wrongEats: number; avgReactionMs: number; bestStreak: number };
+        rewardProgress: {
+          gameId: string;
+          xpEarned: number;
+          xpTotal: number;
+          level: number;
+          dailyStreak: number;
+          unlockedBadges: string[];
+        } | null;
         nextProfile: ServerProfile;
       }>("/api/game/session/finalize", {
         sessionId,
         score,
         levelReached: level,
+        gameId,
       });
 
       const total = result.summary.correctEats + result.summary.wrongEats;
       const accuracy = total ? Math.round((result.summary.correctEats / total) * 100) : 0;
 
+      const rewardText = result.rewardProgress
+        ? ` | XP +${result.rewardProgress.xpEarned} (Total ${result.rewardProgress.xpTotal}) | Badges: ${result.rewardProgress.unlockedBadges.length}`
+        : "";
+
       setStatus(
-        `Saved. Accuracy: ${accuracy}% | Avg: ${result.summary.avgReactionMs}ms | Next Level: ${result.nextProfile.level}`,
+        `Saved. Accuracy: ${accuracy}% | Avg: ${result.summary.avgReactionMs}ms | Next Level: ${result.nextProfile.level}${rewardText}`,
       );
     } catch (error) {
       setStatus(`Save failed: ${error instanceof Error ? error.message : "unknown error"}`);

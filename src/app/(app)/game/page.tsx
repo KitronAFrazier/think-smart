@@ -1,9 +1,9 @@
-import { GameBoard } from "@/components/app/GameBoard";
+import { MvpGameLibrary } from "@/components/app/MvpGameLibrary";
 
 export default function GamePage() {
   return (
     <div className="p-6">
-      <GameBoard initialMode="multiples" />
+      <MvpGameLibrary />
     </div>
   );
 }

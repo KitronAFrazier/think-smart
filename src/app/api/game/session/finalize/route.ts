@@ -2,17 +2,24 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { computeNextProfile, defaultProfile, type Mode } from "@/lib/adaptive-engine";
 import { getAuthedStudent } from "@/lib/auth/get-student";
+import { awardGameRewards } from "@/lib/game-progression";
+import { isMvpGameId } from "@/lib/game-library";
 import { prisma } from "@/lib/prisma";
 
 const Body = z.object({
   sessionId: z.string().uuid(),
   score: z.number().int().min(0).max(1_000_000),
   levelReached: z.number().int().min(1).max(999),
+  gameId: z.string().optional(),
 });
 
 export async function POST(req: Request) {
   const json = await req.json();
-  const { sessionId, score, levelReached } = Body.parse(json);
+  const { sessionId, score, levelReached, gameId } = Body.parse(json);
+
+  if (gameId && !isMvpGameId(gameId)) {
+    return NextResponse.json({ error: "Invalid gameId" }, { status: 400 });
+  }
 
   const { student } = await getAuthedStudent();
   if (!student) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -110,9 +117,22 @@ export async function POST(req: Request) {
     create: { studentId: student.id, mode: session.mode, bestScore: score },
   });
 
+  const rewardGameId = gameId && isMvpGameId(gameId) ? gameId : null;
+
+  const rewardProgress = rewardGameId
+    ? await awardGameRewards({
+        studentId: student.id,
+        gameId: rewardGameId,
+        correctEats,
+        bestStreak,
+        levelReached,
+      })
+    : null;
+
   return NextResponse.json({
     ok: true,
     summary: { correctEats, wrongEats, avgReactionMs, bestStreak },
+    rewardProgress,
     nextProfile: {
       level: next.level,
       numberMax: next.numberMax,
