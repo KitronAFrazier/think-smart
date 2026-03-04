@@ -44,6 +44,14 @@ function sameCell(a: { row: number; col: number }, b: { row: number; col: number
   return a.row === b.row && a.col === b.col;
 }
 
+function modeLabel(mode: Mode) {
+  if (mode === "multiples") return "Multiples";
+  if (mode === "factors") return "Factors";
+  if (mode === "primes") return "Primes";
+  if (mode === "equality") return "Equal Expressions";
+  return "Not Equal Expressions";
+}
+
 async function postJSON<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
@@ -81,6 +89,14 @@ export function GameBoard(props: { initialMode?: Mode }) {
   const lastActionAtRef = useRef<number>(0);
 
   const tickMs = profile?.tickMs ?? 650;
+  const hearts = `${"❤️".repeat(lives)}${"🖤".repeat(Math.max(0, 3 - lives))}`;
+  const vibeText = gameOver
+    ? "Great try. Hit restart and beat your score."
+    : lives === 1
+      ? "Careful. One life left."
+      : score >= 100
+        ? "Awesome munching. Keep going."
+        : "Catch the right numbers and dodge troggles.";
 
   const headerText = useMemo(() => {
     if (mode === "primes") return "Eat PRIME numbers";
@@ -328,80 +344,87 @@ export function GameBoard(props: { initialMode?: Mode }) {
   }, [gameOver]);
 
   return (
-    <div className="w-full max-w-2xl space-y-3">
-      <div className="rounded-xl border p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="space-y-1">
-            <div className="text-sm opacity-70">Mode</div>
-            <div className="font-semibold">{mode}</div>
-          </div>
+    <div className="nm-shell">
+      <div className="nm-sky" aria-hidden />
 
-          <div className="space-y-1">
-            <div className="text-sm opacity-70">Objective</div>
-            <div className="font-semibold">{headerText}</div>
-          </div>
-
-          <div className="space-y-1 text-right">
-            <div className="text-sm opacity-70">Level</div>
-            <div className="font-semibold">{level}</div>
-          </div>
+      <div className="nm-hud">
+        <div className="nm-title-wrap">
+          <div className="nm-title">Number Munchers</div>
+          <div className="nm-subtitle">{vibeText}</div>
         </div>
-
-        <div className="mt-3 flex items-center justify-between">
-          <div className="text-sm">
-            <span className="font-semibold">Score:</span> {score} <span className="opacity-60">|</span>{" "}
-            <span className="font-semibold">Lives:</span> {lives} <span className="opacity-60">|</span>{" "}
-            <span className="font-semibold">Troggles:</span> {troggles.length}{" "}
-            <span className="opacity-60">|</span> <span className="font-semibold">Tick:</span> {tickMs}ms
-          </div>
-
-          <button
-            className="rounded-lg border px-3 py-1 text-sm hover:bg-black/5"
-            onClick={() => {
-              void startSession();
-            }}
-          >
-            Restart
-          </button>
-        </div>
-
-        {status ? <div className="mt-2 text-xs opacity-70">{status}</div> : null}
+        <button
+          className="nm-restart"
+          onClick={() => {
+            void startSession();
+          }}
+        >
+          Restart
+        </button>
       </div>
 
-      <div className="rounded-xl border p-3">
-        <div className="grid grid-cols-5 gap-2">
+      <div className="nm-objective-card">
+        <div className="nm-pill">Mode: {modeLabel(mode)}</div>
+        <div className="nm-pill nm-pill-gold">Level {level}</div>
+        <div className="nm-objective">{headerText}</div>
+      </div>
+
+      <div className="nm-stats">
+        <div className="nm-stat">
+          <div className="nm-stat-label">Score</div>
+          <div className="nm-stat-value">{score}</div>
+        </div>
+        <div className="nm-stat">
+          <div className="nm-stat-label">Lives</div>
+          <div className="nm-stat-value nm-hearts">{hearts}</div>
+        </div>
+        <div className="nm-stat">
+          <div className="nm-stat-label">Troggles</div>
+          <div className="nm-stat-value">{troggles.length}</div>
+        </div>
+        <div className="nm-stat">
+          <div className="nm-stat-label">Speed</div>
+          <div className="nm-stat-value">{tickMs}ms</div>
+        </div>
+      </div>
+
+      {status ? <div className="nm-status">{status}</div> : null}
+
+      <div className="nm-board-card">
+        <div className="nm-grid">
           {grid.map((cell, i) => {
             const r = Math.floor(i / COLS);
             const c = i % COLS;
             const isPlayer = player.row === r && player.col === c;
             const troggleHere = troggles.some((t) => t.row === r && t.col === c);
-
-            const base =
-              "relative flex h-14 items-center justify-center rounded-lg border text-sm font-semibold select-none";
-            const eaten = cell.eaten ? "opacity-30" : "";
-            const highlight = isPlayer ? "ring-2 ring-black" : "";
-            const danger = troggleHere ? "bg-black text-white" : "";
+            const tone = ["tone-a", "tone-b", "tone-c", "tone-d"][(r * COLS + c) % 4];
 
             return (
-              <div key={cell.id} className={`${base} ${eaten} ${highlight} ${danger}`}>
-                {cell.value}
-                {isPlayer && !troggleHere ? (
-                  <div className="absolute bottom-1 right-1 text-[10px] opacity-70">You</div>
-                ) : null}
-                {troggleHere ? (
-                  <div className="absolute bottom-1 right-1 text-[10px] opacity-70">Troggle</div>
-                ) : null}
+              <div
+                key={cell.id}
+                className={`nm-cell ${tone} ${cell.eaten ? "is-eaten" : ""} ${isPlayer ? "is-player" : ""} ${troggleHere ? "is-troggle" : ""}`}
+              >
+                <span className="nm-cell-value">{cell.value}</span>
+                {isPlayer && !troggleHere ? <span className="nm-cell-tag">You</span> : null}
+                {troggleHere ? <span className="nm-cell-tag">Troggle</span> : null}
               </div>
             );
           })}
         </div>
 
-        <div className="mt-3 text-xs opacity-70">Controls: Arrow keys or WASD. Landing on a cell eats it.</div>
+        <div className="nm-controls">Move with Arrow keys or WASD.</div>
 
         {gameOver ? (
-          <div className="mt-3 rounded-lg border p-3">
-            <div className="text-lg font-semibold">Game Over</div>
-            <div className="text-sm opacity-70">Final score: {score}</div>
+          <div className="nm-gameover">
+            <div className="nm-gameover-title">Game Over</div>
+            <div className="nm-gameover-score">Final score: {score}</div>
+            <button
+              className="nm-restart nm-restart-wide"
+              onClick={() => {
+                void startSession();
+              }}
+            >
+              Play Again
+            </button>
           </div>
         ) : null}
       </div>
