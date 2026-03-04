@@ -76,7 +76,14 @@ export default function StudentAppView() {
             ) : null}
             {activePanel === "practice-quizzes" ? <p>Practice quizzes are available for Math facts, Reading comprehension, and Science review.</p> : null}
             {activePanel === "final-test" ? <p>Final tests are unlocked after completing all weekly practice quizzes.</p> : null}
-            {activePanel === "game-numbers" ? <p>Number games: multiplication sprint, fractions challenge, and mental math race.</p> : null}
+            {activePanel === "game-numbers" ? (
+              <>
+                <p>Number games: multiplication sprint, fractions challenge, and mental math race.</p>
+                <Link className="btn btn-primary btn-sm" href="/game">
+                  Play Numbers Game
+                </Link>
+              </>
+            ) : null}
             {activePanel === "game-spelling-typing" ? <p>Spelling & typing games: word builder, sentence scramble, and typing speed drills.</p> : null}
             {activePanel === "game-coding" ? <p>Coding games: logic puzzles, block coding quests, and debugging mini-missions.</p> : null}
             {activePanel === "game-history" ? <p>History games: timeline quest, state facts challenge, and civics trivia rounds.</p> : null}
