@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Flame, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import { safeJsonParse } from "@/lib/http";
 import { getCurriculumForGrade, gradeCurriculum, gradeLevelOptions } from "@/lib/grade-curriculum";
@@ -76,6 +76,21 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
 
     setIsAddModalOpen(false);
   }
+
+  useEffect(() => {
+    if (!isAddModalOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !saving) {
+        setIsAddModalOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isAddModalOpen, saving]);
 
   function startProfileEdit() {
     if (!activeStudent) {
