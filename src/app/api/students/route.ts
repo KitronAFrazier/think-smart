@@ -76,13 +76,18 @@ function mapStudentResponse(data: StudentRow) {
 async function selectStudentAfterWrite(
   auth: NonNullable<Awaited<ReturnType<typeof getServerAuthContext>>>,
   studentId: string,
+  ownerUserId?: string,
 ): Promise<{ data: StudentRow | null; error: { message: string } | null }> {
-  const withAll = await auth.client
+  let withAllQuery = auth.client
     .from("students")
     .select("id, first_name, grade_level, avatar_text, login_username, auth_user_id, xp, streak")
-    .eq("id", studentId)
-    .eq("user_id", auth.user.id)
-    .maybeSingle();
+    .eq("id", studentId);
+
+  if (ownerUserId) {
+    withAllQuery = withAllQuery.eq("user_id", ownerUserId);
+  }
+
+  const withAll = await withAllQuery.maybeSingle();
 
   if (!withAll.error) {
     return { data: withAll.data as StudentRow | null, error: null };
@@ -103,12 +108,16 @@ async function selectStudentAfterWrite(
     fallbackSelect.push("login_username", "auth_user_id");
   }
 
-  const fallback = await auth.client
+  let fallbackQuery = auth.client
     .from("students")
     .select(fallbackSelect.join(", "))
-    .eq("id", studentId)
-    .eq("user_id", auth.user.id)
-    .maybeSingle();
+    .eq("id", studentId);
+
+  if (ownerUserId) {
+    fallbackQuery = fallbackQuery.eq("user_id", ownerUserId);
+  }
+
+  const fallback = await fallbackQuery.maybeSingle();
 
   if (fallback.error) {
     return { data: null, error: { message: fallback.error.message } };
@@ -117,11 +126,61 @@ async function selectStudentAfterWrite(
   return { data: fallback.data as StudentRow | null, error: null };
 }
 
+async function resolveStudentOwnerUserId(
+  auth: NonNullable<Awaited<ReturnType<typeof getServerAuthContext>>>,
+): Promise<{ ownerUserId: string; error?: string; status?: number }> {
+  const requesterEmail = auth.user.email?.trim().toLowerCase();
+  if (!requesterEmail) {
+    return { ownerUserId: auth.user.id };
+  }
+
+  try {
+    const service = getSupabaseServiceClient();
+    const { data, error } = await service
+      .from("profiles")
+      .select("id")
+      .ilike("secondary_parent_email", requesterEmail)
+      .limit(2);
+
+    if (error) {
+      return { ownerUserId: auth.user.id };
+    }
+
+    if (!data || data.length === 0) {
+      return { ownerUserId: auth.user.id };
+    }
+
+    if (data.length > 1) {
+      return {
+        ownerUserId: auth.user.id,
+        error: "Secondary parent email is linked to multiple parent accounts. Ask the primary parent to update Settings.",
+        status: 409,
+      };
+    }
+
+    const resolvedOwner = data[0]?.id;
+    if (typeof resolvedOwner !== "string" || !resolvedOwner) {
+      return { ownerUserId: auth.user.id };
+    }
+
+    return { ownerUserId: resolvedOwner };
+  } catch {
+    return { ownerUserId: auth.user.id };
+  }
+}
+
 export async function POST(request: Request) {
   const auth = await getServerAuthContext();
   if (!auth?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const ownerResolution = await resolveStudentOwnerUserId(auth);
+  if (ownerResolution.error) {
+    return NextResponse.json({ error: ownerResolution.error }, { status: ownerResolution.status ?? 500 });
+  }
+
+  const ownerUserId = ownerResolution.ownerUserId;
 
   let body: CreateStudentPayload;
   try {
@@ -144,7 +203,7 @@ export async function POST(request: Request) {
   const withAvatar = await auth.client
     .from("students")
     .insert({
-      user_id: auth.user.id,
+      user_id: ownerUserId,
       first_name: firstName,
       grade_level: gradeLevel,
       avatar_text: normalizeAvatarText(firstName),
@@ -159,7 +218,7 @@ export async function POST(request: Request) {
     const fallback = await auth.client
       .from("students")
       .insert({
-        user_id: auth.user.id,
+        user_id: ownerUserId,
         first_name: firstName,
         grade_level: gradeLevel,
       })
@@ -174,7 +233,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error?.message ?? "Could not create student." }, { status: 500 });
   }
 
-  const selected = await selectStudentAfterWrite(auth, createdId);
+  const selected = await selectStudentAfterWrite(auth, createdId, ownerUserId);
   if (selected.error || !selected.data) {
     return NextResponse.json({ error: selected.error?.message ?? "Could not create student." }, { status: 500 });
   }
@@ -203,7 +262,6 @@ export async function DELETE(request: Request) {
     .from("students")
     .delete()
     .eq("id", studentId)
-    .eq("user_id", auth.user.id)
     .select("id")
     .maybeSingle();
 
@@ -264,7 +322,6 @@ export async function PATCH(request: Request) {
     .from("students")
     .select("id, auth_user_id, login_username")
     .eq("id", studentId)
-    .eq("user_id", auth.user.id)
     .maybeSingle();
 
   let existingAuthUserId: string | null = null;
@@ -289,7 +346,6 @@ export async function PATCH(request: Request) {
       .from("students")
       .select("id")
       .eq("id", studentId)
-      .eq("user_id", auth.user.id)
       .maybeSingle();
 
     if (existsFallback.error) {
@@ -401,7 +457,6 @@ export async function PATCH(request: Request) {
     .from("students")
     .update(updatePayload)
     .eq("id", studentId)
-    .eq("user_id", auth.user.id)
     .select("id")
     .maybeSingle();
 
@@ -413,7 +468,6 @@ export async function PATCH(request: Request) {
       .from("students")
       .update(updatePayload)
       .eq("id", studentId)
-      .eq("user_id", auth.user.id)
       .select("id")
       .maybeSingle();
 
@@ -441,7 +495,6 @@ export async function PATCH(request: Request) {
       .from("students")
       .update(legacyPayload)
       .eq("id", studentId)
-      .eq("user_id", auth.user.id)
       .select("id")
       .maybeSingle();
 
