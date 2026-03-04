@@ -24,6 +24,13 @@ type ServerProfile = {
 
 const ROWS = 6;
 const COLS = 5;
+const DEFAULT_PROFILE: ServerProfile = {
+  level: 1,
+  numberMax: 30,
+  eqComplexity: 1,
+  troggleCount: 1,
+  tickMs: 650,
+};
 
 function idx(row: number, col: number) {
   return row * COLS + col;
@@ -57,6 +64,7 @@ export function GameBoard(props: { initialMode?: Mode }) {
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ServerProfile | null>(null);
+  const [backendEnabled, setBackendEnabled] = useState(true);
 
   const [target, setTarget] = useState<number>(() => makeTarget(mode, 30));
   const [grid, setGrid] = useState<Cell[]>([]);
@@ -114,22 +122,36 @@ export function GameBoard(props: { initialMode?: Mode }) {
 
   async function startSession() {
     setStatus("Starting...");
-    const data = await postJSON<{ sessionId: string; profile: ServerProfile }>(
-      "/api/game/session/start",
-      { mode },
-    );
-    setSessionId(data.sessionId);
-    setProfile(data.profile);
-    setLevel(data.profile.level);
-    rebuildBoard(data.profile);
-    setScore(0);
-    setLives(3);
-    setGameOver(false);
-    setStatus("");
+    try {
+      const data = await postJSON<{ sessionId: string; profile: ServerProfile }>(
+        "/api/game/session/start",
+        { mode },
+      );
+      setBackendEnabled(true);
+      setSessionId(data.sessionId);
+      setProfile(data.profile);
+      setLevel(data.profile.level);
+      rebuildBoard(data.profile);
+      setScore(0);
+      setLives(3);
+      setGameOver(false);
+      setStatus("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      setBackendEnabled(false);
+      setSessionId(`local-${crypto.randomUUID()}`);
+      setProfile(DEFAULT_PROFILE);
+      setLevel(DEFAULT_PROFILE.level);
+      rebuildBoard(DEFAULT_PROFILE);
+      setScore(0);
+      setLives(3);
+      setGameOver(false);
+      setStatus(`Offline mode: ${message}`);
+    }
   }
 
   async function logEat(isCorrect: boolean, value: string) {
-    if (!sessionId) return;
+    if (!sessionId || !backendEnabled) return;
 
     const now = Date.now();
     const reactionMs = clamp(now - lastActionAtRef.current, 0, 60000);
@@ -144,6 +166,10 @@ export function GameBoard(props: { initialMode?: Mode }) {
 
   async function finalizeSession() {
     if (!sessionId) return;
+    if (!backendEnabled) {
+      setStatus("Game over. Offline session saved locally.");
+      return;
+    }
     setStatus("Saving results...");
 
     try {
@@ -170,9 +196,7 @@ export function GameBoard(props: { initialMode?: Mode }) {
 
   useEffect(() => {
     lastActionAtRef.current = Date.now();
-    startSession().catch((error) => {
-      setStatus(error instanceof Error ? error.message : "Failed to start");
-    });
+    void startSession();
   }, []);
 
   useEffect(() => {
@@ -226,13 +250,7 @@ export function GameBoard(props: { initialMode?: Mode }) {
         setScore((s) => s + 50);
         setLevel((l) => l + 1);
 
-        const p = profile ?? {
-          level: level + 1,
-          numberMax: 30,
-          eqComplexity: 1,
-          troggleCount: 1,
-          tickMs: 650,
-        };
+        const p = profile ?? { ...DEFAULT_PROFILE, level: level + 1 };
 
         const boosted: ServerProfile = {
           ...p,
@@ -339,7 +357,9 @@ export function GameBoard(props: { initialMode?: Mode }) {
 
           <button
             className="rounded-lg border px-3 py-1 text-sm hover:bg-black/5"
-            onClick={() => startSession().catch((error) => setStatus(String(error)))}
+            onClick={() => {
+              void startSession();
+            }}
           >
             Restart
           </button>
