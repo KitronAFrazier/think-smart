@@ -9,6 +9,7 @@ type TopbarProps = {
   darkMode: boolean;
   userInitials: string;
   isAdmin: boolean;
+  sidebarOpen: boolean;
   onToggleSidebar: () => void;
   onOpenAddLesson: () => void;
   onOpenReport: () => void;
@@ -21,6 +22,7 @@ export default function Topbar({
   darkMode,
   userInitials,
   isAdmin,
+  sidebarOpen,
   onToggleSidebar,
   onOpenAddLesson,
   onOpenReport,
@@ -63,9 +65,11 @@ export default function Topbar({
 
   return (
     <header className="topbar">
-      <button className="topbar-toggle" onClick={onToggleSidebar} aria-label="Toggle sidebar" type="button">
-        <Menu className="icon-svg" />
-      </button>
+      {!sidebarOpen ? (
+        <button className="topbar-toggle" onClick={onToggleSidebar} aria-label="Open sidebar" type="button">
+          <Menu className="icon-svg" />
+        </button>
+      ) : null}
       <div className="topbar-title">{title}</div>
       <div className="topbar-actions">
         <button className="topbar-btn" onClick={onOpenAddLesson} type="button">

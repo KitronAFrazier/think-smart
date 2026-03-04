@@ -67,9 +67,11 @@ export default function Sidebar({ sidebarOpen, onToggleSidebar }: SidebarProps) 
               <div className="brand-tagline">Texas Homeschool</div>
             </div>
           </div>
-          <button className="sidebar-menu-btn" onClick={onToggleSidebar} aria-label="Toggle sidebar" type="button">
-            <Menu className="icon-svg" />
-          </button>
+          {sidebarOpen ? (
+            <button className="sidebar-menu-btn" onClick={onToggleSidebar} aria-label="Collapse sidebar" type="button">
+              <Menu className="icon-svg" />
+            </button>
+          ) : null}
         </div>
       </div>
 

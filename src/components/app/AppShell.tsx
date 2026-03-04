@@ -119,6 +119,7 @@ export default function AppShell({ children, userEmail, currentPlan, isAdmin }: 
           darkMode={darkMode}
           userInitials={userInitials}
           isAdmin={isAdmin}
+          sidebarOpen={sidebarOpen}
           onToggleSidebar={() => {
             setSidebarOpen((prev) => !prev);
           }}
