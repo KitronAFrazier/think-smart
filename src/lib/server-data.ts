@@ -21,26 +21,37 @@ function isMissingColumnError(message: string | undefined, column: string): bool
   return text.includes("column") && text.includes(column.toLowerCase()) && text.includes("schema cache");
 }
 
-async function selectStudentsWithOptionalAvatar(
+async function selectStudentsWithOptionalFields(
   auth: NonNullable<Awaited<ReturnType<typeof getServerAuthContext>>>,
 ) {
-  const withAvatar = await auth.client
+  const withAll = await auth.client
     .from("students")
-    .select("id, first_name, grade_level, avatar_text, xp, streak")
+    .select("id, first_name, grade_level, avatar_text, login_username, xp, streak")
     .order("created_at", { ascending: true });
 
-  if (!withAvatar.error) {
-    return withAvatar;
+  if (!withAll.error) {
+    return withAll;
   }
 
-  if (isMissingColumnError(withAvatar.error.message, "avatar_text")) {
+  const avatarMissing = isMissingColumnError(withAll.error.message, "avatar_text");
+  const loginMissing = isMissingColumnError(withAll.error.message, "login_username");
+
+  if (avatarMissing || loginMissing) {
+    const fallbackSelect = ["id", "first_name", "grade_level", "xp", "streak"];
+    if (!avatarMissing) {
+      fallbackSelect.push("avatar_text");
+    }
+    if (!loginMissing) {
+      fallbackSelect.push("login_username");
+    }
+
     return auth.client
       .from("students")
-      .select("id, first_name, grade_level, xp, streak")
+      .select(fallbackSelect.join(", "))
       .order("created_at", { ascending: true });
   }
 
-  return withAvatar;
+  return withAll;
 }
 
 function relatedStudentFirstName(input: unknown): string | undefined {
@@ -70,7 +81,7 @@ export async function getDashboardData() {
   }
 
   const [studentsRes, assignmentsRes, attendanceRes] = await Promise.all([
-    selectStudentsWithOptionalAvatar(auth),
+    selectStudentsWithOptionalFields(auth),
     auth.client
       .from("assignments")
       .select("id, title, subject, due_date, status, students(first_name)")
@@ -88,6 +99,10 @@ export async function getDashboardData() {
         ("avatar_text" in student && typeof student.avatar_text === "string"
           ? student.avatar_text
           : null) ?? student.first_name.slice(0, 2).toUpperCase(),
+      loginUsername:
+        ("login_username" in student && typeof student.login_username === "string"
+          ? student.login_username
+          : null) ?? null,
       xp: student.xp ?? 0,
       streak: student.streak ?? 0,
       progress: {},
@@ -139,7 +154,7 @@ export async function getStudentsData() {
   }
 
   const [studentsRes, progressRes] = await Promise.all([
-    selectStudentsWithOptionalAvatar(auth),
+    selectStudentsWithOptionalFields(auth),
     auth.client
       .from("progress")
       .select("student_id, subject, assignment_title, letter_grade, score_percent, recorded_at")
@@ -166,6 +181,10 @@ export async function getStudentsData() {
       ("avatar_text" in student && typeof student.avatar_text === "string"
         ? student.avatar_text
         : null) ?? student.first_name.slice(0, 2).toUpperCase(),
+    loginUsername:
+      ("login_username" in student && typeof student.login_username === "string"
+        ? student.login_username
+        : null) ?? null,
     xp: student.xp ?? 0,
     streak: student.streak ?? 0,
     progress: progressByStudent.get(student.id) ?? {},

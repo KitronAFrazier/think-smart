@@ -10,6 +10,7 @@ type Student = {
   name: string;
   grade: string;
   avatar: string;
+  loginUsername?: string | null;
   xp: number;
   streak: number;
   progress: Record<string, number>;
@@ -53,6 +54,8 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFirstName, setEditFirstName] = useState("");
   const [editGradeLevel, setEditGradeLevel] = useState<string>(gradeLevelOptions[0]);
+  const [editLoginUsername, setEditLoginUsername] = useState("");
+  const [editLoginPassword, setEditLoginPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,12 +102,15 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
 
     setEditFirstName(activeStudent.name);
     setEditGradeLevel(activeStudent.grade);
+    setEditLoginUsername((activeStudent.loginUsername ?? "").trim());
+    setEditLoginPassword("");
     setError(null);
     setIsEditingProfile(true);
   }
 
   function cancelProfileEdit() {
     setIsEditingProfile(false);
+    setEditLoginPassword("");
     setError(null);
   }
 
@@ -153,6 +159,8 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
 
     const trimmedName = editFirstName.trim();
     const trimmedGrade = editGradeLevel.trim();
+    const trimmedLoginUsername = editLoginUsername.trim().toLowerCase();
+    const trimmedLoginPassword = editLoginPassword.trim();
 
     if (!trimmedName || !trimmedGrade) {
       setError("First name and grade level are required.");
@@ -166,7 +174,13 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
       const response = await fetch("/api/students", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: activeStudent.id, firstName: trimmedName, gradeLevel: trimmedGrade }),
+        body: JSON.stringify({
+          id: activeStudent.id,
+          firstName: trimmedName,
+          gradeLevel: trimmedGrade,
+          loginUsername: trimmedLoginUsername || undefined,
+          loginPassword: trimmedLoginPassword || undefined,
+        }),
       });
 
       const json = await safeJsonParse<UpdateStudentResponse>(response);
@@ -179,6 +193,7 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
           student.id === activeStudent.id ? { ...student, ...json.student, progress: student.progress } : student,
         ),
       );
+      setEditLoginPassword("");
       setIsEditingProfile(false);
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : "Could not update student.");
@@ -389,11 +404,31 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
                       </option>
                     ))}
                   </select>
+                  <input
+                    className="form-input"
+                    value={editLoginUsername}
+                    onChange={(event) => setEditLoginUsername(event.target.value)}
+                    disabled={saving}
+                    placeholder="Student username"
+                    aria-label="Edit student username"
+                  />
+                  <input
+                    className="form-input"
+                    type="password"
+                    value={editLoginPassword}
+                    onChange={(event) => setEditLoginPassword(event.target.value)}
+                    disabled={saving}
+                    placeholder="Set new password (min 8 chars)"
+                    aria-label="Set student password"
+                  />
                 </div>
               ) : (
                 <>
                   <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 700 }}>{activeStudent.name}</div>
                   <div style={{ color: "var(--text-3)" }}>{activeStudent.grade}</div>
+                  <div style={{ color: "var(--text-3)", fontSize: "0.8rem", marginTop: 4 }}>
+                    Student login: {activeStudent.loginUsername ? activeStudent.loginUsername : "Not set"}
+                  </div>
                 </>
               )}
               <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>

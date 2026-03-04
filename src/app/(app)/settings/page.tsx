@@ -9,7 +9,7 @@ export default async function SettingsPage() {
   const email = user?.email ?? "user@thinksmart.local";
 
   const profileRes = user
-    ? await auth.client.from("profiles").select("full_name").eq("id", user.id).maybeSingle()
+    ? await auth.client.from("profiles").select("full_name, secondary_parent_email").eq("id", user.id).maybeSingle()
     : { data: null };
 
   const initialDisplayName =
@@ -19,6 +19,10 @@ export default async function SettingsPage() {
     userMeta?.username?.trim() ||
     email.split("@")[0] ||
     "Parent";
+  const initialSecondaryParentEmail =
+    "secondary_parent_email" in (profileRes.data ?? {}) && typeof profileRes.data?.secondary_parent_email === "string"
+      ? profileRes.data.secondary_parent_email
+      : "";
 
   return (
     <div className="page">
@@ -27,7 +31,12 @@ export default async function SettingsPage() {
         <p>Manage account profile, app preferences, notifications, and security.</p>
       </div>
 
-      <SettingsPanel email={email} initialDisplayName={initialDisplayName} currentPlan={currentPlan} />
+      <SettingsPanel
+        email={email}
+        initialDisplayName={initialDisplayName}
+        initialSecondaryParentEmail={initialSecondaryParentEmail}
+        currentPlan={currentPlan}
+      />
     </div>
   );
 }

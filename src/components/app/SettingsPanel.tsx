@@ -8,18 +8,21 @@ import { PLAN_LABELS } from "@/lib/plans";
 type SettingsPanelProps = {
   email: string;
   initialDisplayName: string;
+  initialSecondaryParentEmail: string;
   currentPlan: PlanTier;
 };
 
 type UpdateProfileResponse = {
   profile?: {
     fullName?: string;
+    secondaryParentEmail?: string | null;
   };
   error?: string;
 };
 
 type LocalSettings = {
   displayName: string;
+  secondaryParentEmail: string;
   schoolYearStartDate: string;
   timezone: string;
   weekStartsOn: "sunday" | "monday";
@@ -35,10 +38,11 @@ type LocalSettings = {
 const STORAGE_KEY = "tlb-settings-v1";
 const PREFERENCES_COOKIE_KEY = "tlb-user-preferences";
 
-function getDefaults(displayName: string): LocalSettings {
+function getDefaults(displayName: string, secondaryParentEmail: string): LocalSettings {
   const currentYear = new Date().getFullYear();
   return {
     displayName,
+    secondaryParentEmail,
     schoolYearStartDate: `${currentYear}-09-01`,
     timezone: "America/Chicago",
     weekStartsOn: "monday",
@@ -52,8 +56,11 @@ function getDefaults(displayName: string): LocalSettings {
   };
 }
 
-export default function SettingsPanel({ email, initialDisplayName, currentPlan }: SettingsPanelProps) {
-  const defaults = useMemo(() => getDefaults(initialDisplayName), [initialDisplayName]);
+export default function SettingsPanel({ email, initialDisplayName, initialSecondaryParentEmail, currentPlan }: SettingsPanelProps) {
+  const defaults = useMemo(
+    () => getDefaults(initialDisplayName, initialSecondaryParentEmail),
+    [initialDisplayName, initialSecondaryParentEmail],
+  );
   const [settings, setSettings] = useState<LocalSettings>(defaults);
   const [mounted, setMounted] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -82,7 +89,10 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
       const response = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName: settings.displayName }),
+        body: JSON.stringify({
+          fullName: settings.displayName,
+          secondaryParentEmail: settings.secondaryParentEmail,
+        }),
       });
       const payload = (await response.json()) as UpdateProfileResponse;
       if (!response.ok) {
@@ -157,6 +167,16 @@ export default function SettingsPanel({ email, initialDisplayName, currentPlan }
               className="form-input"
               value={settings.schoolYearStartDate}
               onChange={(event) => setSettings((previous) => ({ ...previous, schoolYearStartDate: event.target.value }))}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Secondary Parent Email</label>
+            <input
+              type="email"
+              className="form-input"
+              value={settings.secondaryParentEmail}
+              onChange={(event) => setSettings((previous) => ({ ...previous, secondaryParentEmail: event.target.value }))}
+              placeholder="second-parent@example.com"
             />
           </div>
         </div>
