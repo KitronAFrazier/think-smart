@@ -1,8 +1,12 @@
 import { Download, Filter, FileText } from "lucide-react";
 import { getProgressData } from "@/lib/server-data";
 
-export default async function ProgressPage() {
+export default async function ProgressPage({ searchParams }: { searchParams: Promise<{ student?: string }> }) {
+  const params = await searchParams;
+  const selectedStudent = params.student?.trim() ?? "";
   const { grades, students } = await getProgressData();
+  const visibleGrades = selectedStudent ? grades.filter((grade) => grade.student === selectedStudent) : grades;
+  const visibleStudents = selectedStudent ? students.filter((student) => student.name === selectedStudent) : students;
 
   const letterColor: Record<string, string> = {
     "A+": "green",
@@ -24,7 +28,7 @@ export default async function ProgressPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1>Progress & Grades</h1>
-            <p>2025–2026 School Year · All Students</p>
+            <p>2025–2026 School Year · {selectedStudent || "All Students"}</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn-secondary btn-sm" type="button">
@@ -38,8 +42,8 @@ export default async function ProgressPage() {
       </div>
 
       <div className="stats-grid" style={{ marginBottom: 24 }}>
-        {students.map((student) => {
-          const rowGrades = grades.filter((grade) => grade.student === student.name);
+        {visibleStudents.map((student) => {
+          const rowGrades = visibleGrades.filter((grade) => grade.student === student.name);
           const avg = rowGrades.length
             ? Math.round(rowGrades.reduce((sum, row) => sum + row.grade, 0) / rowGrades.length)
             : 0;
@@ -81,7 +85,7 @@ export default async function ProgressPage() {
               </tr>
             </thead>
             <tbody>
-              {grades.map((grade) => (
+              {visibleGrades.map((grade) => (
                 <tr key={`${grade.student}-${grade.lesson}-${grade.date}`}>
                   <td>{grade.student}</td>
                   <td>{grade.subject}</td>

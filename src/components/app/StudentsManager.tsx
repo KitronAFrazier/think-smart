@@ -127,7 +127,7 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1>My Students</h1>
-            <p>{students.length} students enrolled · School Year 2025–2026</p>
+            <p>{students.length} students enrolled · Click a student card to view progress</p>
           </div>
         </div>
       </div>
@@ -241,6 +241,9 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
               </button>
               <a className="btn btn-primary btn-sm" href="/planner">
                 <BookOpen className="icon-svg" /> Planner
+              </a>
+              <a className="btn btn-primary btn-sm" href={`/progress?student=${encodeURIComponent(activeStudent.name)}`}>
+                View Progress
               </a>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void handleRemoveStudent(activeStudent.id)} disabled={saving}>
                 <Trash2 className="icon-svg" /> Remove

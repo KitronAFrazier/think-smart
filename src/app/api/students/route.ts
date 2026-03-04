@@ -73,14 +73,20 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Student id is required." }, { status: 400 });
   }
 
-  const { error } = await auth.client
+  const { data, error } = await auth.client
     .from("students")
     .delete()
     .eq("id", studentId)
-    .eq("user_id", auth.user.id);
+    .eq("user_id", auth.user.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (!data) {
+    return NextResponse.json({ error: "Student not found." }, { status: 404 });
   }
 
   return NextResponse.json({ success: true });
