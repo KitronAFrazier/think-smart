@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Flame, Pencil, Save, Sparkles, Trash2, UserPlus, X } from "lucide-react";
+import { BookOpen, Flame, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import { safeJsonParse } from "@/lib/http";
 import { getCurriculumForGrade, gradeCurriculum, gradeLevelOptions } from "@/lib/grade-curriculum";
 
@@ -34,13 +34,13 @@ type CreateStudentResponse = {
   error?: string;
 };
 
-type DeleteStudentResponse = {
-  success?: boolean;
+type UpdateStudentResponse = {
+  student?: Student;
   error?: string;
 };
 
-type UpdateStudentResponse = {
-  student?: Student;
+type DeleteStudentResponse = {
+  success?: boolean;
   error?: string;
 };
 
@@ -48,10 +48,11 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(initialStudents[0]?.id ?? null);
   const [firstName, setFirstName] = useState("");
-  const [gradeLevel, setGradeLevel] = useState("");
+  const [gradeLevel, setGradeLevel] = useState<string>(gradeLevelOptions[0]);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFirstName, setEditFirstName] = useState("");
-  const [editGradeLevel, setEditGradeLevel] = useState("");
-  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [editGradeLevel, setEditGradeLevel] = useState<string>(gradeLevelOptions[0]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,17 +62,35 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
   );
   const activeCurriculum = activeStudent ? getCurriculumForGrade(activeStudent.grade) : undefined;
 
-  function beginEditingStudent(student: Student) {
-    setEditingStudentId(student.id);
-    setEditFirstName(student.name);
-    setEditGradeLevel(student.grade);
+  function openAddStudentModal() {
+    setFirstName("");
+    setGradeLevel(gradeLevelOptions[0]);
     setError(null);
+    setIsAddModalOpen(true);
   }
 
-  function cancelEditingStudent() {
-    setEditingStudentId(null);
-    setEditFirstName("");
-    setEditGradeLevel("");
+  function closeAddStudentModal() {
+    if (saving) {
+      return;
+    }
+
+    setIsAddModalOpen(false);
+  }
+
+  function startProfileEdit() {
+    if (!activeStudent) {
+      return;
+    }
+
+    setEditFirstName(activeStudent.name);
+    setEditGradeLevel(activeStudent.grade);
+    setError(null);
+    setIsEditingProfile(true);
+  }
+
+  function cancelProfileEdit() {
+    setIsEditingProfile(false);
+    setError(null);
   }
 
   async function handleAddStudent(event: React.FormEvent<HTMLFormElement>) {
@@ -103,7 +122,8 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
       setStudents((previous) => [...previous, json.student as Student]);
       setSelectedStudentId(json.student.id);
       setFirstName("");
-      setGradeLevel("");
+      setGradeLevel(gradeLevelOptions[0]);
+      setIsAddModalOpen(false);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Could not add student.");
     } finally {
@@ -111,8 +131,8 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
     }
   }
 
-  async function handleSaveStudentProfile() {
-    if (!editingStudentId) {
+  async function handleUpdateStudent() {
+    if (!activeStudent) {
       return;
     }
 
@@ -131,22 +151,22 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
       const response = await fetch("/api/students", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editingStudentId, firstName: trimmedName, gradeLevel: trimmedGrade }),
+        body: JSON.stringify({ id: activeStudent.id, firstName: trimmedName, gradeLevel: trimmedGrade }),
       });
 
       const json = await safeJsonParse<UpdateStudentResponse>(response);
       if (!response.ok || !json.student) {
-        throw new Error(json.error ?? "Could not update student profile.");
+        throw new Error(json.error ?? "Could not update student.");
       }
 
       setStudents((previous) =>
         previous.map((student) =>
-          student.id === editingStudentId ? { ...student, ...json.student, progress: student.progress } : student,
+          student.id === activeStudent.id ? { ...student, ...json.student, progress: student.progress } : student,
         ),
       );
-      cancelEditingStudent();
+      setIsEditingProfile(false);
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : "Could not update student profile.");
+      setError(updateError instanceof Error ? updateError.message : "Could not update student.");
     } finally {
       setSaving(false);
     }
@@ -178,7 +198,7 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
         setSelectedStudentId(remaining[0]?.id ?? null);
         return remaining;
       });
-      cancelEditingStudent();
+      setIsEditingProfile(false);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Could not remove student.");
     } finally {
@@ -194,39 +214,76 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
             <h1>My Students</h1>
             <p>{students.length} students enrolled · Click a student card to view progress</p>
           </div>
+          <button className="btn btn-gold" type="button" onClick={openAddStudentModal} disabled={saving}>
+            <UserPlus className="icon-svg" /> Add Student
+          </button>
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <form onSubmit={handleAddStudent} className="students-form-grid">
-          <input
-            className="form-input"
-            placeholder="First name"
-            value={firstName}
-            onChange={(event) => setFirstName(event.target.value)}
-            disabled={saving}
-            required
-          />
-          <select className="form-select" value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)} disabled={saving} required>
-            <option value="" disabled>
-              Select grade level
-            </option>
-            {gradeLevelOptions.map((gradeOption) => (
-              <option key={gradeOption} value={gradeOption}>
-                {gradeOption}
-              </option>
-            ))}
-          </select>
-          <button className="btn btn-gold" type="submit" disabled={saving}>
-            <UserPlus className="icon-svg" /> {saving ? "Saving..." : "Add Student"}
-          </button>
-        </form>
-        {error ? (
-          <div className="badge red" style={{ marginTop: 10 }}>
-            {error}
+      {error ? (
+        <div className="badge red" style={{ marginBottom: 12 }}>
+          {error}
+        </div>
+      ) : null}
+
+      {isAddModalOpen ? (
+        <div className="modal-overlay" onClick={closeAddStudentModal}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Add Student</div>
+              <button className="modal-close" type="button" onClick={closeAddStudentModal} aria-label="Close add student modal" disabled={saving}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddStudent}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="student-first-name">
+                  First Name
+                </label>
+                <input
+                  className="form-input"
+                  id="student-first-name"
+                  placeholder="First name"
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  disabled={saving}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="student-grade-level">
+                  Grade Level
+                </label>
+                <select
+                  className="form-select"
+                  id="student-grade-level"
+                  value={gradeLevel}
+                  onChange={(event) => setGradeLevel(event.target.value)}
+                  disabled={saving}
+                  required
+                >
+                  {gradeLevelOptions.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-secondary" type="button" onClick={closeAddStudentModal} style={{ flex: 1 }} disabled={saving}>
+                  Cancel
+                </button>
+                <button className="btn btn-gold" type="submit" style={{ flex: 1 }} disabled={saving}>
+                  {saving ? "Saving..." : "Add Student"}
+                </button>
+              </div>
+            </form>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 16, marginBottom: 20 }}>
         {students.map((student) => {
@@ -239,7 +296,11 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
               className={`student-card ${isActive ? "active" : ""}`}
               key={student.id}
               type="button"
-              onClick={() => setSelectedStudentId(student.id)}
+              onClick={() => {
+                setSelectedStudentId(student.id);
+                setIsEditingProfile(false);
+                setError(null);
+              }}
               style={
                 isActive
                   ? {
@@ -290,23 +351,29 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
             >
               {activeStudent.avatar}
             </div>
-            <div>
-              {editingStudentId === activeStudent.id ? (
-                <div className="students-edit-grid">
+            <div style={{ minWidth: 240, flex: 1 }}>
+              {isEditingProfile ? (
+                <div style={{ display: "grid", gap: 8, maxWidth: 280 }}>
                   <input
                     className="form-input"
                     value={editFirstName}
                     onChange={(event) => setEditFirstName(event.target.value)}
-                    placeholder="First name"
                     disabled={saving}
+                    aria-label="Edit student first name"
                   />
-                  <input
-                    className="form-input"
+                  <select
+                    className="form-select"
                     value={editGradeLevel}
                     onChange={(event) => setEditGradeLevel(event.target.value)}
-                    placeholder="Grade level"
                     disabled={saving}
-                  />
+                    aria-label="Edit student grade level"
+                  >
+                    {gradeLevelOptions.map((level) => (
+                      <option key={level} value={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               ) : (
                 <>
@@ -323,19 +390,19 @@ export default function StudentsManager({ initialStudents, grades }: StudentsMan
                 </span>
               </div>
             </div>
-            <div className="students-actions-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-              {editingStudentId === activeStudent.id ? (
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {isEditingProfile ? (
                 <>
-                  <button className="btn btn-primary btn-sm" type="button" onClick={() => void handleSaveStudentProfile()} disabled={saving}>
-                    <Save className="icon-svg" /> Save
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={cancelProfileEdit} disabled={saving}>
+                    Cancel
                   </button>
-                  <button className="btn btn-secondary btn-sm" type="button" onClick={cancelEditingStudent} disabled={saving}>
-                    <X className="icon-svg" /> Cancel
+                  <button className="btn btn-gold btn-sm" type="button" onClick={() => void handleUpdateStudent()} disabled={saving}>
+                    {saving ? "Saving..." : "Save"}
                   </button>
                 </>
               ) : (
-                <button className="btn btn-secondary btn-sm" type="button" onClick={() => beginEditingStudent(activeStudent)}>
-                  <Pencil className="icon-svg" /> Edit
+                <button className="btn btn-secondary btn-sm" type="button" onClick={startProfileEdit} disabled={saving}>
+                  Edit
                 </button>
               )}
               <a className="btn btn-primary btn-sm" href="/planner">
